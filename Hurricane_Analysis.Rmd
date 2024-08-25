@@ -8,7 +8,7 @@ output:
   github_document:
     html_preview: false
     includes: 
-      in_header: head.html
+      in_header: _includes/head.html
     toc: true
     toc_depth: 3
 ---

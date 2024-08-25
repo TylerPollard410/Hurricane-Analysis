@@ -36,6 +36,7 @@ Tyler Pollard
 
 <!-- end custom head snippets -->
 
+- [Exploratory Data Analysis](#exploratory-data-analysis)
 - [Model Description](#model-description)
 - [Model Comparisons](#model-comparisons)
   - [Model Selection Criteria](#model-selection-criteria)
@@ -45,6 +46,12 @@ Tyler Pollard
 
 A Bayesian analysis of hurricane data from the National Hurricane
 Center.
+
+# Exploratory Data Analysis
+
+To begin we start with using the [shiny
+app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to explore the
+data.
 
 # Model Description
 
