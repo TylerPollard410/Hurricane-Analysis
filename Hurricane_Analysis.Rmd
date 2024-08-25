@@ -1,0 +1,51 @@
+---
+title: "Hurricane Analysis"
+author: "Tyler Pollard"
+date: "2024-08-25"
+header-includes:
+  - \usepackage{mathtools}
+layout: default
+output:  
+  github_document:
+    html_preview: false
+    includes: 
+      in_header: head.html
+    toc: true
+    toc_depth: 3
+---
+
+A Bayesian analysis of hurricane data from the National Hurricane Center.
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r load libraries}
+# Load Libraries ----
+library(knitr)
+library(MASS)
+
+# Bayesian
+library(rjags)
+# library(brms)
+# library(bayesanova)
+# library(bayesplot)
+# library(BayesFactor)
+
+# Data transforming and data viz
+library(gt)
+library(gtsummary)
+library(tidyverse)
+```
+
+# Model Description
+
+# Model Comparisons
+
+## Model Selection Criteria
+
+# Goodness of Fit
+
+# Variable Importance
+
+# Prediction
