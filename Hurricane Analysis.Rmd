@@ -1,0 +1,156 @@
+---
+header-includes:
+  #- \usepackage{float}
+  - \usepackage{floatrow}
+  - \usepackage{indentfirst}
+  - \usepackage{caption}
+  - \usepackage{array}
+  - \floatplacement{figure}{H}
+  - \usepackage{amsmath}
+  - \usepackage{multicol}
+  - \usepackage{longdivision}
+  - \usepackage{makecell}
+  - \usepackage{titlesec}
+geometry: "left=1in,right=1in,top=1in,bottom=1in"
+fontsize: 12pt
+linestretch: 1.0
+indent: true
+output: pdf_document
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60), tidy = TRUE)
+```
+
+```{r load libraries}
+# Load Libraries ----
+library(knitr)
+library(MASS)
+library(rjags)
+library(tidyverse)
+```
+
+\begin{center}
+\Large
+\textbf{ST540 Exam 2}
+\large
+Tyler Pollard
+\end{center}
+
+\singlespacing
+\vspace{-0.5in}
+\section{\normalsize{1. Model description}}
+\vspace{-0.125in}
+The data for this analysis is related to 24-hour ahead forecasts of hurricane intensity. The response variable, $Y_i$, is the observed maximum wind velocity (VMAX) of a given hurricane StormID $S$ at observation $i$. The objective of this Bayesian analysis is to predict missing values of VMAX that are better predictions than the current model which is captured by the HWRF covariate in the data. The $p = 11$ covariates $X_{ij}$ that were fit to the model were LAT, MINSLP, SHR_MAG, STM_SPD, RHL0, CAPE3, INST2, TCONDSYM2, COUPLSYM3, HWFI, and HWRF. For an observation in storm $S$, we assume the linear model
+
+\vspace{-0.125in}
+$$
+\begin{aligned}
+Y_i &= \beta_{0S} + \sum_{j=1}^{p}X_{ij}\beta_{jS} + \epsilon_{i} \\
+\end{aligned}
+$$
+where $\beta_{jS}$ is the effect of covariate $j$ in Storm $S$. We compare three models for the $\beta_{jS}$
+
+  1.) Constant slopes: $\beta_{jS} \equiv \beta_j$ for all Storms
+  
+  2.) Varying slopes with uninformative priors: $\beta_{jS} \sim Normal(0, 100)$
+  
+  3.) Varying slopes with informative priors: $\beta_{jS} \sim Normal(\mu_j, \sigma_j^2)$
+\newline
+Although the data for VMAX itself is not Gaussian, the errors are when it is regressed onto the predictors. Also with flat priors and large $n$ the Bayesian central limit can be invoked to approximate the posterior as Gaussian.
+
+\vspace{-0.125in}
+\section{\normalsize{2. Model comparisons}}
+\vspace{-0.125in}
+All three models above were fit to the data and I first checked that the models converged to an acceptable level. Once I confirmed that models did in fact converge, as seen in Figure 1, I compared the models based on DIC and WAIC to determine the best fitting model of the three. Based on Table 1, I chose to go forward with the slopes as random effects model because it had the smallest mean deviance which is a good sign that it will predict the best, although it was not as simple as the first model with constant slopes.
+
+\begin{minipage}{\textwidth}
+\hspace{-0.3in}
+\begin{minipage}{0.5\textwidth}
+```{r Model Comparison - ESS, fig.align='center', out.width='30%', fig.show='hold', fig.cap='Distribution of Effective Sample Size for all three models'}
+load("ESS1.RData")
+load("ESS2.RData")
+load("ESS3.RData")
+load("fitsum_df.RData")
+
+hist(ESS1, main = "Constant Slopes Model", cex.main = 2.5)
+hist(ESS2, main = "Fixed Effect Slopes Model", cex.main = 2.5)
+hist(ESS3, main = "Random Effect Slopes Model", cex.main = 2.5)
+
+fitsum_df[,2:6] <- round(fitsum_df[,2:6])
+```
+\end{minipage}
+\footnotesize
+\begin{minipage}{0.5\textwidth}
+\centering
+\captionsetup{width=0.9\linewidth}
+\captionof{table}{Model Selection Criteria}
+\begin{tabular}[b]{c|cccc}
+Model & $DIC$ & $p_D$ & $WAIC$ & $p_W$ \\ \hline
+1 & `r fitsum_df[1,4]` & `r fitsum_df[1,3]` & `r fitsum_df[1,5]` & `r fitsum_df[1,6]` \\
+2 & `r fitsum_df[2,4]` & `r fitsum_df[2,3]` & `r fitsum_df[2,5]` & `r fitsum_df[2,6]` \\
+3 & `r fitsum_df[3,4]` & `r fitsum_df[3,3]` & `r fitsum_df[3,5]` & `r fitsum_df[3,6]` \\
+\end{tabular}
+\end{minipage}
+\end{minipage}
+
+\vspace{-0.125in}
+\section{\normalsize{3. Goodness of fit}}
+\vspace{-0.125in}
+To indicate the goodness of fit of the model, posterior predictive checks were simulated as the data was being simulated. For every iteration of the MCMC, a draw of size $n$ was made from the posterior predictive distribution of $Y_i$ and the mean, standard deviation, and max were calculated to also get a draw from their distribution to compare directly back to the observed values of VMAX. The Bayesian p-values for these posterior predicitive checks and they are far from 0 or 1, so this is a good fitting model.
+```{r Goodness of Fit, fig.align='center', out.width='32%', fig.show = 'hold', fig.cap='Posterior Predictive Checks'}
+load("D0_Y.RData")
+load("D3_Y.RData")
+
+DPrintnames <- c("Mean of Y",
+                 "SD of Y",
+                 "Max of Y")
+D0_YPPD <- D0_Y[,DPrintnames]
+D3_YPPD <- D3_Y[,DPrintnames]
+  
+pval1 <- rep(0, length(DPrintnames))
+names(pval1) <- DPrintnames
+
+for(j in 1:length(DPrintnames)){
+  pval1[j] <- mean(D3_YPPD[,j] > D0_YPPD[j])
+  plot(density(D3_YPPD[,j]), xlab = "D", ylab = "Posterior Probability",
+       xlim = c(min(D0_YPPD[j], D3_YPPD[,j]), 
+                max(D0_YPPD[j], D3_YPPD[,j])), 
+       main = DPrintnames[j])
+  abline(v = D0_YPPD[j], col = "green", lwd = 2)
+  legend("topright", c("PPD", "Observed", paste0("p-value = ", pval1[j])), 
+         col = c("black", "green", NA), lwd = 2)
+}
+```
+
+\vspace{-0.375in}
+\section{\normalsize{4. Variable importance}}
+\vspace{-0.125in}
+After fitting the model with random slopes with informative priors, the importance of the covariates changed drastically in terms of what is most important. The mean, standard deviation, and 95% credible set on each parameter is displayed for both the posterior of model 1 and model 3 after pooling over the storm IDs. In the model that treated the slopes as constant across storms, every parameter had a significant effect other than MINSLP according the the 95\% credible interval. However, in model 3 when the slopes are treated as random effects and estimated from the data, the only important variables are HWRF and HWFI. We were told that HWRF would be a very important variable, but we may have another one that can improve the predictions of VMAX across storms. Since VMAX is log-normally distributed, both HWRF and HWFI increase VMAX about 8\%.
+
+\vspace{-0.125in}
+\footnotesize
+```{r Variable Importance}
+load("Mod1 Post Beta Sum.RData")
+load("Mod3 Post Beta Sum.RData")
+posteriorBetaSummary_Df <- cbind(post1BetaSumdf, post3BetaSumdf)
+posteriorBetaSummary_Df <- round(posteriorBetaSummary_Df,4)
+kable(posteriorBetaSummary_Df, 
+      col.names = c("Parameter", "Mean[1]", "SD[1]", "Q2.5[1]", "Q97.5[1]", "Mean[3]", "SD[3]", "Q2.5[3]", "Q97.5[3]"),
+      caption = "Posterior summary of parameters for Model 1 and 3")
+```
+\normalsize
+
+\vspace{-0.25in}
+\section{\normalsize{5. Prediction}}
+\vspace{-0.125in}
+The posterior predictive distributions were output for the $\beta_{js}$ and $\sigma_i$ parameters. Using these PPD's to draw new values for the new values for the covariates and StormIDs that were not present in the training data set, new data was simulated. For each new observation, the posterior predictive distribution was determined and posterior predictive checks were conducted for the mean and 95\% credible set from $S = 20000$ iterations of MCMC sampling. The Bayesian p-values from the posterior predictive checks were 0.35029940, 0.68263473, and 0.04041916 for the mean, lower bound, and upper bound, respectively when compared to the observed values of the original data set. This is not a one-to-one comparison, but gives a good idea of a decent fit and prediction of the new observations.
+
+
+
+
+
+
+
+
