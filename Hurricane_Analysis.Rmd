@@ -4,7 +4,6 @@ author: "Tyler Pollard"
 date: "2024-08-25"
 header-includes:
   - \usepackage{mathtools}
-layout: default
 output:  
   github_document:
     html_preview: false
