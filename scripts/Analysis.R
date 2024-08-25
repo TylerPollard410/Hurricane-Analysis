@@ -13,15 +13,27 @@ library(tidyverse)
 library(tictoc)
 library(caret)
 
+library(DescTools)
 library(bayesplot)
 library(BayesFactor)
 library(brms)
 library(rstanarm)
+library(tidybayes)
+
+library(tidyverse)
 
 # Read in data ----
 ## Clean data ----
 Stormdata <- fread("E2_data.csv")
 Stormdata$basin <- ifelse(Stormdata$basin == "atlantic", 1, 0)
+
+# get unique values
+lapply(Stormdata, function(x){length(unique(x))})
+
+Stormdata2 <- Stormdata |>
+  select(-lead_time)
+
+
 
 ## Create training and test data sets ----
 training_data <- Stormdata |> filter(complete.cases(VMAX))

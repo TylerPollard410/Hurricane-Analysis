@@ -22,20 +22,40 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```{r load libraries}
 # Load Libraries ----
 library(knitr)
+library(data.table)
 library(MASS)
+library(tictoc)
 
 # Bayesian
 library(rjags)
-# library(brms)
-# library(bayesanova)
-# library(bayesplot)
-# library(BayesFactor)
+library(caret)
+library(bayesplot)
+library(BayesFactor)
+library(brms)
+library(rstanarm)
 
 # Data transforming and data viz
+library(stringr)
+library(plyr)
 library(gt)
 library(gtsummary)
 library(tidyverse)
 ```
+
+```{r Read in Data}
+# Read in data ----
+## Clean data ----
+Stormdata <- fread("_data/E2_data.csv")
+Stormdata$basin <- ifelse(Stormdata$basin == "atlantic", 1, 0)
+
+## Create training and test data sets ----
+training_data <- Stormdata |> filter(complete.cases(VMAX))
+test_data <- Stormdata |> filter(!complete.cases(VMAX))
+```
+
+# Exploratory Data Analysis
+
+To begin we start with using the [shiny app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to explore the data.
 
 # Model Description
 

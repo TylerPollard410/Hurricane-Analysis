@@ -8,3 +8,4 @@ markdown: kramdown
 exclude:
   - _layouts
   - _includes
+  - app
