@@ -8,28 +8,107 @@
 #
 
 library(shiny)
+library(bs4Dash)
+library(shinyWidgets)
+library(waiter)
+library(data.table)
+library(glue)
+library(scales)
+library(smplot2)
+library(reactable)
+library(lubridate)
+library(tidyverse)
 
 # Define UI for application that draws a histogram
 shinyUI(
-    fluidPage(
-        
-        # Application title
-        titlePanel("Old Faithful Geyser Data"),
-        
-        # Sidebar with a slider input for number of bins
-        sidebarLayout(
-            sidebarPanel(
-                sliderInput("bins",
-                            "Number of bins:",
-                            min = 1,
-                            max = 50,
-                            value = 30)
+    bs4DashPage(
+        title = "Hurricane Explore", skin = "dark", 
+        #preloader = list(html = tagList(spin_1(), "Loading ..."), color = "#3c8dbc"),
+        # Header ====
+        header = dashboardHeader(
+            title = dashboardBrand(
+                title = div(strong("Hurricane EDA"), style = "align:center"),
+                color = "primary"
+                #image = "https://github.com/TylerPollard410/TylerPollard410.github.io/blob/master/assets/images/profilepic2.jpeg"
             ),
-            
-            # Show a plot of the generated distribution
-            mainPanel(
-                plotOutput("distPlot")
+            rightUi = tagList(
+                dropdownMenu(
+                    badgeStatus = "info",
+                    type = "notifications",
+                    notificationItem(
+                        inputId = "triggerAuthor",
+                        text = "Author: Tyler Pollard", 
+                        icon =  icon("user"),
+                        status = "danger"
+                    )
+                )
             )
-        )
-    )
-)
+        ),
+        
+        # Sidebar ====
+        sidebar = bs4DashSidebar(
+            id = "mysidebar", 
+            sidebarMenu(
+                id = "mysidebarmenu",
+                menuItem(text = "Data", tabName = "data_tab", icon = icon("table")),
+                menuItem(text = "Plots", tabName = "plot_tab", icon = icon("chart-simple"))
+            )
+        ),
+        
+        # Body ====
+        body = dashboardBody(
+            tabItems(
+                ## Data Tab ----
+                tabItem(tabName = "data_tab",
+                        fluidPage(
+                            h1("Data"),
+                            hr(),
+                            reactableOutput(outputId = "dataTableOut")
+                            
+                        ) # end fluidPage
+                ), # end plot tab
+                
+                ## Plot ----
+                tabItem(tabName = "plot_tab",
+                        fluidPage(
+                            fluidRow(
+                                column(
+                                    width = 3,
+                                    box(title = "Data Inputs", 
+                                        width = 12,
+                                        prettyRadioButtons(
+                                            inputId = "plot_type", 
+                                            label = "Please select plot type", 
+                                            choices = c(
+                                                "Scatter" = "scatter_plot",
+                                                "Histogram" = "histogram_plot",
+                                                "Boxplot" = "box_plot",
+                                                "Map" = "map_plot"
+                                            ), 
+                                            selected = "scatter_plot", 
+                                            status = "info", 
+                                            inline = FALSE
+                                        ),
+                                        hr(),
+                                        uiOutput(outputId = "plotDataInputs")
+                                    )
+                                ),
+                                column(
+                                    width = 9,
+                                    box(title = "Plot Inputs",
+                                        width = 12,
+                                        plotOutput(outputId = "OutPlot")
+                                        )
+                                )
+                            )
+                        ) # end fluidPage
+                ) # end plot tab
+            )
+        ) # end body
+    ) # end dashbaord Page
+) # end ShinyUI
+
+
+
+
+

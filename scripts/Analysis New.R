@@ -9,6 +9,7 @@ library(tidyverse)
 library(tictoc)
 library(cowplot)
 library(caret)
+library(splines)
 library(DescTools)
 library(bayesplot)
 library(BayesFactor)
@@ -20,30 +21,55 @@ library(tidyverse)
 
 # Read in data ----
 ## Clean data ----
-Stormdata <- fread("_data/E2_data.csv")
-Stormdata <- Stormdata |>
+Stormdata_raw <- fread("~/Desktop/Hurricane Analysis/_data/E2_data.csv")
+Stormdata <- Stormdata_raw |>
   mutate(
     StormID = factor(StormID),
     basin = factor(basin),
-    Date = as_datetime(Date)
+    Date = as_datetime(Date, tz = "UTC")
+    #Date = as_datetime(format(Date, "%Y-%m-%d %H:%M:%S"),  tz = "UTC")
   )
-str(Stormdata)
+#as.POSIXct(Stormdata$Date[1])
+# str(Stormdata)
 
 ## Create training and test data sets ----
 StormdataTrain <- Stormdata |> filter(complete.cases(VMAX))
 StormdataTest <- Stormdata |> filter(!complete.cases(VMAX))
 
-lapply(StormdataTrain, function(x){length(unique(x))})
-
+## Transform data ----
 # Remove not varying 
 StormdataTrain2 <- StormdataTrain |>
   select(-lead_time)
 
-summary(StormdataTrain2$VMAX)
+# Create Date vars 
+dataYears <- year(StormdataTrain2$Date)
+dataMonths <- month(StormdataTrain2$Date, label = TRUE)
+dataDays <- day(StormdataTrain2$Date)
+
+StormdataTrain3 <- StormdataTrain2 |>
+  mutate(
+    Year = factor(dataYears, ordered = TRUE),
+    Month = dataMonths
+  ) |>
+  group_by(StormID) |>
+  mutate(
+    StormElapsedTime = as.numeric(difftime(Date, min(Date), units = "hours"))
+  ) |>
+  select(
+    StormID,
+    Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    everything()
+  ) |>
+  ungroup()
+
+summary(StormdataTrain3$VMAX)
 
 ## Plot VMAX ----
 ### Histogram ----
-ggplot(data = StormdataTrain2) +
+ggplot(data = StormdataTrain3) +
   geom_histogram(
     aes(x = VMAX, after_stat(density)),
     color = "#99c7c7", fill = "#bcdcdc",
@@ -65,16 +91,16 @@ ggplot(data = StormdataTrain2) +
   )
 
 ### Time ----
-ggplot(data = StormdataTrain2) +
+ggplot(data = StormdataTrain3) +
   geom_point(aes(x = Date, y = VMAX)) +
   scale_x_datetime(date_breaks = "month", 
                    date_minor_breaks = "day", 
-                   date_labels = "%m-%Y") + 
+                   date_labels = "%b-%Y") + 
   theme(
     axis.text.x = element_text(angle = 90)
   )
 
-ggplot(data = StormdataTrain2) +
+ggplot(data = StormdataTrain3) +
   geom_point(aes(y = StormID, x = VMAX, color = StormID))
 
 ### Map ----
@@ -88,7 +114,7 @@ ggplot() +
     aes(x = long, y = lat, map_id = region) 
   ) + 
   geom_point(
-    data = StormdataTrain2,
+    data = StormdataTrain3,
     aes(x = LON-360, y = LAT, 
         color = VMAX)
   ) +
@@ -98,46 +124,119 @@ ggplot() +
   theme_bw()
 
 ### Plots by Factor ----
-num_cols <- colnames(StormdataTrain2)[sapply(StormdataTrain2, function(x){is.numeric(x)})]
+num_cols <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is.numeric(x)})]
 num_cols
 
-
-# Fit prelim models
-
-
-
-
-parse_fact <- c(
-  "YearSemester",
-  "School",
-  "Grade",
-  "Gender2",
-  "Race2"
+# Fit model ----
+generalBayes1 <- generalTestBF(
+  formula = VMAX ~ .,
+  data = modelData,
+  whichRandom = "StormID",
+  multicore = TRUE,
+  iterations = 500
 )
 
-fact_plots <- list()
-for(i in 1:length(parse_fact)){
-  fact <- parse_fact[i]
-  fact_plot <- ggplot(data = Sciencesurvey_data) +
-    geom_histogram(aes(x = ScienceScore, after_stat(density), fill = !!sym(fact)),
-                   binwidth = 0.25,
-                   position = position_dodge()) +
-    geom_density(aes(x = ScienceScore)) +
-    facet_wrap(vars(!!sym(fact))) +
-    theme_bw() +
-    theme(
-      legend.position = "bottom"
-    )
-  fact_plots[[i]] <- fact_plot
+# Fit prelim models
+Y <- StormdataTrain3 |> select(VMAX)
+X <- StormdataTrain3 |> 
+  select(
+    #"StormID",
+    #Date,
+    #Year,
+    #Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF"
+  )
+modelData <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID)
+  )
+str(modelData)
+
+L <- 10 # number of knots
+B1   <- bs(modelData$LON, df=2*L, intercept=TRUE) # Longitude basis functions
+B2   <- bs(modelData$LON, df=L, intercept=TRUE)   # Latitude basis functions
+X    <- NULL
+for(j in 1:ncol(B1)){
+  for(k in 1:ncol(B2)){
+    X <- cbind(X,B1[,j]*B2[,k])  # Products
+  }
 }
+X    <- X[,apply(X,2,max)>0.1]  # Remove basis function that are near zero for all sites
+X    <- ifelse(X>0.001,X,0)
+p    <- ncol(X)
 
-cowplot::plot_grid(plotlist = fact_plots, ncol = 2)
+fields::BN
 
-
-
-
-
-
+index <- sample(1:p, 1)
+spline_data <- modelData |>
+  select(
+    LON, 
+    LAT
+  ) |>
+  add_column(spline = X[spline])
+#world_coordinates <- map_data("world") 
+ggplot() + 
+  # geom_map() function takes world coordinates  
+  # as input to plot world map 
+  geom_map( 
+    data = world_coordinates, map = world_coordinates, 
+    aes(x = long, y = lat, map_id = region) 
+  ) + 
+  geom_point(
+    data = spline_data,
+    aes(x = LON-360, y = LAT, 
+        color = spline)
+  ) +
+  xlim(c(-180,0)) +
+  ylim(c(0,60)) +
+  scale_color_continuous(low = "green", high = "red") +
+  theme_bw()
 
 
 
