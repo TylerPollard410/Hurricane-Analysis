@@ -5,7 +5,7 @@ library(MASS)
 library(rjags)
 library(plyr)
 library(stringr)
-library(tidyverse)
+library(lubridate)
 library(tictoc)
 library(cowplot)
 library(caret)
@@ -13,10 +13,10 @@ library(splines)
 library(DescTools)
 library(bayesplot)
 library(BayesFactor)
-library(brms)
 library(rstanarm)
 library(tidybayes)
-library(lubridate)
+library(brms)
+library(performance)
 library(tidyverse)
 
 # Read in data ----
@@ -27,10 +27,18 @@ Stormdata <- Stormdata_raw |>
     StormID = factor(StormID),
     basin = factor(basin),
     Date = as_datetime(Date, tz = "UTC")
-    #Date = as_datetime(format(Date, "%Y-%m-%d %H:%M:%S"),  tz = "UTC")
   )
-#as.POSIXct(Stormdata$Date[1])
+
 # str(Stormdata)
+
+# Timediff <- Stormdata |>
+#   group_by(StormID) |>
+#   summarise(
+#     difftime(Date, lag(Date, default = Date[1]), units = "hours")
+#   )
+# 
+# nondense <- which(Timediff$`difftime(Date, lag(Date, default = Date[1]), units = "hours")` > 6)
+# nondenseID <- Stormdata |> slice(nondense)
 
 ## Create training and test data sets ----
 StormdataTrain <- Stormdata |> filter(complete.cases(VMAX))
@@ -100,12 +108,10 @@ ggplot(data = StormdataTrain3) +
     axis.text.x = element_text(angle = 90)
   )
 
-ggplot(data = StormdataTrain3) +
-  geom_point(aes(y = StormID, x = VMAX, color = StormID))
 
 ### Map ----
 # Do by time next
-world_coordinates <- map_data("world", ) 
+world_coordinates <- map_data("world") 
 ggplot() + 
   # geom_map() function takes world coordinates  
   # as input to plot world map 
@@ -123,49 +129,9 @@ ggplot() +
   scale_color_continuous(low = "green", high = "red") +
   theme_bw()
 
-### Plots by Factor ----
-num_cols <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is.numeric(x)})]
-num_cols
-
 # Fit model ----
-generalBayes1 <- generalTestBF(
-  formula = VMAX ~ .,
-  data = modelData,
-  whichRandom = "StormID",
-  multicore = TRUE,
-  iterations = 500
-)
-
-# Fit prelim models
-Y <- StormdataTrain3 |> select(VMAX)
-X <- StormdataTrain3 |> 
-  select(
-    #"StormID",
-    #Date,
-    #Year,
-    #Month,
-    StormElapsedTime,
-    "basin",
-    "LAT",
-    "LON",
-    "MINSLP",
-    "SHR_MAG",
-    "STM_SPD",
-    "SST",
-    "RHLO",
-    "CAPE1",
-    "CAPE3",
-    "SHTFL2",
-    "TCOND7002",
-    "INST2",
-    "CP1",
-    "TCONDSYM2",
-    "COUPLSYM3",
-    "HWFI",
-    "VMAX_OP_T0",
-    "HWRF"
-  )
-modelData <- StormdataTrain3 |>
+## Create Data ----
+StormdataTrain4 <- StormdataTrain3 |>
   select(
     "StormID",
     #Date,
@@ -196,58 +162,606 @@ modelData <- StormdataTrain3 |>
   mutate(
     StormID = droplevels(StormID)
   )
-str(modelData)
+str(StormdataTrain4)
 
-L <- 10 # number of knots
-B1   <- bs(modelData$LON, df=2*L, intercept=TRUE) # Longitude basis functions
-B2   <- bs(modelData$LON, df=L, intercept=TRUE)   # Latitude basis functions
-X    <- NULL
-for(j in 1:ncol(B1)){
-  for(k in 1:ncol(B2)){
-    X <- cbind(X,B1[,j]*B2[,k])  # Products
+linFit1 <- brm(
+  formula = VMAX ~ 
+    Year +
+    Month +
+    StormElapsedTime + 
+    #basin + 
+    LAT +
+    LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain4, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit1)
+posterior_summary(linFit1)
+linFit1
+
+print(linFit1, digits = 4)
+plot(linFit1)
+loo(linFit1)
+performance::check_distribution(linFit1)
+performance::check_outliers(linFit1)
+performance::check_heteroskedasticity(linFit1)
+performance_rmse(linFit1)
+performance_mae(linFit1)
+variance_decomposition(linFit1)
+fixef(linFit1)
+ranef(linFit1)
+
+
+
+StormdataTrain5 <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  )
+str(StormdataTrain5)
+
+linFit2 <- brm(
+  formula = VMAX ~ 
+    Year +
+    Month +
+    StormElapsedTime + 
+    #basin + 
+    LAT +
+    LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain5, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit2)
+posterior_summary(linFit2)
+linFit2
+
+print(linFit2, digits = 4)
+plot(linFit2)
+loo(linFit2)
+performance::check_distribution(linFit2)
+performance::check_outliers(linFit2)
+performance::check_heteroskedasticity(linFit2)
+performance_rmse(linFit2)
+performance_mae(linFit2)
+variance_decomposition(linFit2)
+fixef(linFit2)
+ranef(linFit2)
+
+bayes_factor(linFit1, linFit2)
+
+
+StormdataTrain6 <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !VMAX, function(x){scale(x)})
+  )
+str(StormdataTrain6)
+
+linFit3 <- brm(
+  formula = VMAX ~ 
+    Year +
+    Month +
+    StormElapsedTime + 
+    #basin + 
+    LAT +
+    LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain6, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit3)
+posterior_summary(linFit3)
+linFit3
+
+print(linFit3, digits = 4)
+plot(linFit3)
+loo(linFit3)
+performance::check_distribution(linFit3)
+performance::check_outliers(linFit3)
+performance::check_heteroskedasticity(linFit3)
+performance_rmse(linFit3)
+performance_mae(linFit3)
+variance_decomposition(linFit3)
+fixef(linFit3)
+ranef(linFit3)
+
+bayes_factor(linFit2, linFit3)
+
+
+
+linFit4 <- brm(
+  formula = VMAX ~ 
+    Year +
+    Month +
+    StormElapsedTime + 
+    I(StormElapsedTime^2) +
+    #basin + 
+    LAT +
+    LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain6, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit4)
+posterior_summary(linFit4)
+linFit4
+
+print(linFit4, digits = 4)
+plot(linFit4)
+loo(linFit4)
+performance::check_distribution(linFit4)
+performance::check_outliers(linFit4)
+performance::check_heteroskedasticity(linFit4)
+performance_rmse(linFit4)
+performance_mae(linFit4)
+variance_decomposition(linFit4)
+fixef(linFit4)
+ranef(linFit4)
+
+bayes_factor(linFit4, linFit3)
+
+
+linFit5 <- brm(
+  formula = VMAX ~ 
+    Year +
+    Month +
+    StormElapsedTime + 
+    I(StormElapsedTime^2) +
+    basin + 
+    LAT +
+    LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain6, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit5)
+posterior_summary(linFit5)
+linFit5
+
+print(linFit5, digits = 4)
+plot(linFit5)
+loo(linFit5)
+performance::check_distribution(linFit5)
+performance::check_outliers(linFit5)
+performance::check_heteroskedasticity(linFit5)
+performance_rmse(linFit5)
+performance_mae(linFit5)
+variance_decomposition(linFit5)
+fixef(linFit5)
+ranef(linFit5)
+
+bayes_factor(linFit5, linFit4)
+
+
+linFit6 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    StormElapsedTime + 
+    I(StormElapsedTime^2) +
+    basin + 
+    LAT +
+    LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain6, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit6)
+posterior_summary(linFit6)
+linFit6
+
+print(linFit6, digits = 4)
+plot(linFit6)
+loo(linFit6)
+performance::check_distribution(linFit6)
+performance::check_outliers(linFit6)
+performance::check_heteroskedasticity(linFit6)
+performance_rmse(linFit6)
+performance_mae(linFit6)
+variance_decomposition(linFit6)
+fixef(linFit6)
+ranef(linFit6)
+
+bayes_factor(linFit6, linFit4)
+bayes_factor(linFit6, linFit5)
+
+
+linFit7 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    s(StormElapsedTime) + 
+    #I(StormElapsedTime^2) +
+    basin + 
+    t2(LAT, LON) +
+    #LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain6, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit7)
+posterior_summary(linFit7)
+linFit7
+
+print(linFit7, digits = 4)
+plot(linFit7)
+loo(linFit7)
+performance::check_distribution(linFit7)
+performance::check_outliers(linFit7)
+performance::check_heteroskedasticity(linFit7)
+performance_rmse(linFit7)
+performance_mae(linFit7)
+variance_decomposition(linFit7)
+fixef(linFit7)
+ranef(linFit7)
+
+bayes_factor(linFit7, linFit4)
+bayes_factor(linFit7, linFit5)
+bayes_factor(linFit7, linFit6)
+
+
+linFit8 <- brm(
+  formula = log(VMAX) ~ 
+    #Year +
+    Month +
+    s(StormElapsedTime) + 
+    #I(StormElapsedTime^2) +
+    basin + 
+    t2(LAT, LON) +
+    #LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain6, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+prior_summary(linFit8)
+posterior_summary(linFit8)
+linFit8
+
+print(linFit8, digits = 4)
+plot(linFit8)
+loo(linFit8)
+performance::check_distribution(linFit8)
+performance::check_outliers(linFit8)
+performance::check_heteroskedasticity(linFit8)
+performance_rmse(linFit8)
+performance_mae(linFit8)
+variance_decomposition(linFit8)
+fixef(linFit8)
+ranef(linFit8)
+
+bayes_factor(linFit8, linFit4)
+bayes_factor(linFit8, linFit5)
+bayes_factor(linFit8, linFit6)
+bayes_factor(linFit8, linFit7)
+
+
+
+# L <- 10 # number of knots
+# B1   <- bs(modelData$LON, df=2*L, intercept=TRUE) # Longitude basis functions
+# B2   <- bs(modelData$LAT, df=L, intercept=TRUE)   # Latitude basis functions
+# X    <- NULL
+# for(j in 1:ncol(B1)){
+#   for(k in 1:ncol(B2)){
+#     X <- cbind(X,B1[,j]*B2[,k])  # Products
+#   }
+# }
+# X    <- X[,apply(X,2,max)>0.1]  # Remove basis function that are near zero for all sites
+# X    <- ifelse(X>0.001,X,0)
+# p    <- ncol(X)
+# 
+# plot(B1[,1])
+# 
+# index <- sample(1:p, 1)
+# spline_data <- modelData |>
+#   select(
+#     LON, 
+#     LAT
+#   ) |>
+#   add_column(spline = X[,index])
+# #world_coordinates <- map_data("world") 
+# ggplot() + 
+#   # geom_map() function takes world coordinates  
+#   # as input to plot world map 
+#   geom_map( 
+#     data = world_coordinates, map = world_coordinates, 
+#     aes(x = long, y = lat, map_id = region) 
+#   ) + 
+#   geom_point(
+#     data = spline_data,
+#     aes(x = LON-360, y = LAT, 
+#         color = spline)
+#   ) +
+#   xlim(c(-180,0)) +
+#   ylim(c(0,60)) +
+#   scale_color_continuous(low = "green", high = "red") +
+#   theme_bw()
+# 
+# gamMod1 <- gam::gam(VMAX ~ gam::s(LON, df = 3), data = modelData)
+# summary(gamMod1)
+# 
+# east <- north <- 1:10
+# Grid <- expand.grid(east, north)
+# K <- nrow(Grid)
+# 
+# # set up distance and neighbourhood matrices
+# distance <- as.matrix(dist(Grid))
+# W <- array(0, c(K, K))
+# W[distance == 1] <- 1
+# 
+# # generate the covariates and response data
+# x1 <- rnorm(K)
+# x2 <- rnorm(K)
+# theta <- rnorm(K, sd = 0.05)
+# phi <- brms::rmulti_normal(
+#   1, mu = rep(0, K), Sigma = 0.4 * exp(-0.1 * distance)
+# )
+# eta <- x1 + x2 + phi
+# prob <- exp(eta) / (1 + exp(eta))
+# size <- rep(50, K)
+# y <- rbinom(n = K, size = size, prob = prob)
+# dat <- data.frame(y, size, x1, x2)
+# 
+# # fit a CAR model
+# fit <- brm(y | trials(size) ~ x1 + x2 + car(W),
+#            data = dat, data2 = list(W = W),
+#            family = binomial())
+# summary(fit)
+# 
+# spaceTimefit <- brm(
+#   formula = 
+# )
+
+
+# 5. Prediction ====
+completeStormdata <- Stormdata_raw |>
+  mutate(
+    Observed = ifelse(is.na(VMAX), "Predict", "Observed")
+  )
+
+Actual_Y <- Stormdata_raw |> 
+  select(-VMAX) |>
+  cbind(Actual_Y)
+
+for(i in 1:nrow(completeStormdata)){
+  if(is.na(completeStormdata$VMAX[i])){
+    completeStormdata$VMAX[i] <- Actual_Y$VMAX[i]
   }
 }
-X    <- X[,apply(X,2,max)>0.1]  # Remove basis function that are near zero for all sites
-X    <- ifelse(X>0.001,X,0)
-p    <- ncol(X)
 
-fields::BN
-
-index <- sample(1:p, 1)
-spline_data <- modelData |>
-  select(
-    LON, 
-    LAT
-  ) |>
-  add_column(spline = X[spline])
-#world_coordinates <- map_data("world") 
-ggplot() + 
-  # geom_map() function takes world coordinates  
-  # as input to plot world map 
-  geom_map( 
-    data = world_coordinates, map = world_coordinates, 
-    aes(x = long, y = lat, map_id = region) 
-  ) + 
-  geom_point(
-    data = spline_data,
-    aes(x = LON-360, y = LAT, 
-        color = spline)
-  ) +
-  xlim(c(-180,0)) +
-  ylim(c(0,60)) +
-  scale_color_continuous(low = "green", high = "red") +
-  theme_bw()
-
-
-
-
-
-
-
-
-
-
-
+completeStormdata |>
+  filter(Observed == "Observed") |>
+  summarise(
+    mean(abs(HWRF - VMAX))
+  )
 
 
 

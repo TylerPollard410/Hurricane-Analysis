@@ -8,6 +8,7 @@
 #
 
 library(shiny)
+library(shinydashboard)
 library(bs4Dash)
 library(shinyWidgets)
 library(waiter)
@@ -23,7 +24,8 @@ library(tidyverse)
 shinyUI(
     bs4DashPage(
         title = "Hurricane Explore", skin = "dark", 
-        #preloader = list(html = tagList(spin_1(), "Loading ..."), color = "#3c8dbc"),
+        preloader = list(html = tagList(spin_1(), "Loading ..."), color = "#3c8dbc"),
+        
         # Header ====
         header = dashboardHeader(
             title = dashboardBrand(
@@ -33,11 +35,13 @@ shinyUI(
             ),
             rightUi = tagList(
                 dropdownMenu(
-                    badgeStatus = "info",
+                    #badgeStatus = "info",
                     type = "notifications",
+                    icon = icon("circle-info"),
+                    headerText = "",
                     notificationItem(
                         inputId = "triggerAuthor",
-                        text = "Author: Tyler Pollard", 
+                        text = "Author: Tyler Pollard",
                         icon =  icon("user"),
                         status = "danger"
                     )
@@ -97,10 +101,25 @@ shinyUI(
                                     width = 9,
                                     box(title = "Plot Inputs",
                                         width = 12,
-                                        plotOutput(outputId = "OutPlot")
-                                        )
-                                )
-                            )
+                                        dropdownMenu = dropdownButton(
+                                            inputId = "plotOptionsButton",
+                                            label = "Plot Options",
+                                            inline = TRUE,
+                                            right = TRUE,
+                                            circle = TRUE,
+                                            status = "info",
+                                            icon = icon("wrench"),
+                                            sliderInput(
+                                                inputId = "plot_height", 
+                                                label = "Plot height",
+                                                min = 400, 
+                                                max = 1000,
+                                                value = 500)
+                                        ),
+                                        uiOutput(outputId = "OutPlotUI")
+                                    ) # end box
+                                ) # end column
+                            ) # end fluidRow
                         ) # end fluidPage
                 ) # end plot tab
             )

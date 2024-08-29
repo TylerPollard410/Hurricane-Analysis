@@ -27,9 +27,9 @@ StormdataTrain2 <- StormdataTrain |>
     select(-lead_time)
 
 # Create Date vars 
-years <- year(StormdataTrain2$Date)
-months <- month(StormdataTrain2$Date)
-days <- day(StormdataTrain2$Date)
+dataYears <- year(StormdataTrain2$Date)
+dataMonths <- month(StormdataTrain2$Date, label = TRUE)
+dataDays <- day(StormdataTrain2$Date)
 
 StormdataTrain3 <- StormdataTrain2 |>
     mutate(
@@ -69,11 +69,11 @@ PlotScatter <- function(x, y = "VMAX", color = NULL, fit_line = FALSE, facet = N
         g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y)))
     }else{
         if(is.numeric(StormdataTrain3 |> pull(color))){
-            g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color))) +
+            g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color), group = !!sym(color))) +
                 scale_color_continuous(low = "red", high = "green")
             
         }else{
-            g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color))) 
+            g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color), group = !!sym(color))) 
         }
     }
     
@@ -84,7 +84,11 @@ PlotScatter <- function(x, y = "VMAX", color = NULL, fit_line = FALSE, facet = N
     if(fit_line){
         g_fit_line <- g_point +
             sm_statCorr(
-                corr_method = "spearman"
+                corr_method = "spearman", 
+                label_x = ifelse(x == "Date", 
+                                 max(StormdataTrain3 |> pull(x)) - months(3),
+                                 0.9*max(StormdataTrain3 |> pull(x))),
+                legends = TRUE
             )
     }else{
         g_fit_line <- g_point
@@ -103,7 +107,7 @@ PlotScatter <- function(x, y = "VMAX", color = NULL, fit_line = FALSE, facet = N
         g_date <- g_facet +
             scale_x_datetime(date_breaks = "month", 
                              date_minor_breaks = "day", 
-                             date_labels = "%b-%Y") + 
+                             date_labels = "%b-%Y") +
             theme(
                 axis.text.x = element_text(angle = 90)
             )
@@ -198,7 +202,9 @@ shinyServer(function(input, output, session) {
                                      selected = NULL, 
                                      multiple = TRUE,
                                      options = pickerOptions(
-                                         maxOptions = 1, virtualScroll = 600
+                                         maxOptions = 1, 
+                                         virtualScroll = 600,
+                                         dropupAuto = FALSE
                                      )
                                  )
                 ),
@@ -217,7 +223,9 @@ shinyServer(function(input, output, session) {
                                      selected = NULL, 
                                      multiple = TRUE,
                                      options = pickerOptions(
-                                         maxOptions = 1, virtualScroll = 600
+                                         maxOptions = 1,
+                                         virtualScroll = 600,
+                                         dropupAuto = FALSE
                                      )
                                  )
                 ),
@@ -234,6 +242,9 @@ shinyServer(function(input, output, session) {
     
     
     ## Plot Output -----
+    ### Box Side bar ----
+    
+    ### Plot ----
     output$OutPlot <- renderPlot({
         req(input$scatter_y)
         if(input$plot_type == "scatter_plot"){
@@ -248,6 +259,12 @@ shinyServer(function(input, output, session) {
         
         plotOut <- scatterPlot
         return(plotOut)
+    })
+    
+    output$OutPlotUI <- renderUI({
+        plotOutput(outputId = "OutPlot",
+                   width = "100%",
+                   height = input$plot_height)
     })
     
 })
