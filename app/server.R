@@ -48,7 +48,11 @@ StormdataTrain3 <- StormdataTrain2 |>
         StormElapsedTime,
         everything()
     ) |>
-    ungroup()
+    ungroup() |>
+    mutate(
+        "VMAX/HWRF" = VMAX/HWRF,
+        "log(VMAX/HWRF)" = log(VMAX/HWRF)
+    )
 
 # Adjust Time for table
 StormTableData <- Stormdata |>

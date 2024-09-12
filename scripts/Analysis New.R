@@ -11,17 +11,20 @@ library(cowplot)
 library(caret)
 library(splines)
 library(DescTools)
+library(car)
 library(bayesplot)
 library(BayesFactor)
 library(rstanarm)
 library(tidybayes)
 library(loo)
+library(projpred)
 library(brms)
 library(performance)
 library(tidyverse)
 
 # Read in data ----
 ## Clean data ----
+### Training ----
 Stormdata_raw <- fread("~/Desktop/Hurricane Analysis/_data/E2_data.csv")
 Stormdata <- Stormdata_raw |>
   mutate(
@@ -29,6 +32,10 @@ Stormdata <- Stormdata_raw |>
     basin = factor(basin),
     Date = as_datetime(Date, tz = "UTC")
   )
+
+### Test ----
+Actual_Y <- fread("_data/Actual Y.csv")
+Actual_Yvec <- Actual_Y |> filter(complete.cases(x)) |> pull(x)
 
 # str(Stormdata)
 
@@ -101,11 +108,11 @@ ggplot(data = StormdataTrain3) +
 
 ggplot(data = StormdataTrain3) +
   geom_histogram(
-    aes(x = VMAX/HWRF, after_stat(density)),
+    aes(x = log(VMAX/HWRF), after_stat(density)),
     color = "#99c7c7", fill = "#bcdcdc",
     bins = 100) +
   geom_density(#data = final_data3,
-    aes(x = VMAX/HWRF),
+    aes(x = log(VMAX/HWRF)),
     color = "#007C7C", 
     linewidth = 1) +
   scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
@@ -152,7 +159,8 @@ ggplot() +
   theme_bw()
 
 # Fit model ----
-## Create Data ----
+## GAUSSIAN ----
+### Model 1 ----
 StormdataTrain4 <- StormdataTrain3 |>
   select(
     "StormID",
@@ -236,7 +244,7 @@ fixef(linFit1)
 ranef(linFit1)
 
 
-
+### Model 2 ----
 StormdataTrain5 <- StormdataTrain3 |>
   select(
     "StormID",
@@ -323,7 +331,7 @@ ranef(linFit2)
 
 bayes_factor(linFit1, linFit2)
 
-
+### Model 3 ----
 StormdataTrain6 <- StormdataTrain3 |>
   select(
     "StormID",
@@ -414,7 +422,7 @@ ranef(linFit3)
 bayes_factor(linFit2, linFit3)
 
 
-
+### Model 4 ----
 linFit4 <- brm(
   formula = VMAX ~ 
     Year +
@@ -467,7 +475,7 @@ ranef(linFit4)
 
 bayes_factor(linFit4, linFit3)
 
-
+### Model 5 ----
 linFit5 <- brm(
   formula = VMAX ~ 
     Year +
@@ -520,7 +528,7 @@ ranef(linFit5)
 
 bayes_factor(linFit5, linFit4)
 
-
+### Model 6 ----
 linFit6 <- brm(
   formula = VMAX ~ 
     #Year +
@@ -574,7 +582,7 @@ ranef(linFit6)
 bayes_factor(linFit6, linFit4)
 bayes_factor(linFit6, linFit5)
 
-
+### Model 7 ----
 linFit7 <- brm(
   formula = VMAX ~ 
     #Year +
@@ -638,7 +646,7 @@ conditional_effects(linFit7)
 
 
 
-
+### Model 8 ----
 linFit8 <- brm(
   formula = VMAX ~ 
     #Year +
@@ -698,7 +706,7 @@ bayes_factor(linFit8, linFit6)
 conditional_smooths(linFit8)
 conditional_effects(linFit8)
 
-
+### Model 9 ----
 StormdataTrain7 <- StormdataTrain3 |>
   select(
     "StormID",
@@ -800,7 +808,7 @@ bayes_factor(linFit9, linFit6)
 conditional_smooths(linFit9)
 conditional_effects(linFit9)
 
-
+### Model 10 ----
 linFit10 <- brm(
   formula = VMAX ~ 
     #Year +
@@ -863,7 +871,81 @@ bayes_factor(linFit10, linFit9)
 conditional_smooths(linFit10)
 conditional_effects(linFit10)
 
+### Model 11 ----
+linFit11 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    #s(StormElapsedTime) + 
+    #I(StormElapsedTime^2) +
+    basin + 
+    t2(LAT, LON, StormElapsedTime) +
+    #LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7, 
+  family = gaussian(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
 
+prior_summary(linFit11)
+posterior_summary(linFit11)
+linFit11
+
+print(linFit11, digits = 4)
+plot(linFit11)
+pp_check(linFit11, ndraws = 100)
+loo(linFit11, linFit10)
+waic(linFit11)
+performance::check_distribution(linFit11)
+performance::check_outliers(linFit11)
+performance::check_heteroskedasticity(linFit11)
+performance_rmse(linFit11)
+performance_mae(linFit11)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(linFit11)
+
+
+variance_decomposition(linFit11)
+exp(fixef(linFit11))
+ranef(linFit11)
+
+bayes_R2(linFit11)
+
+bayes_factor(linFit11, gammaFit1)
+bayes_factor(linFit11, studentFit1)
+bayes_factor(linFit11, linFit10)
+bayes_factor(linFit11, propFit1)
+bayes_factor(linFit11, logPropFit1)
+
+conditional_smooths(linFit11)
+conditional_effects(linFit11)
+
+linFit11EPreds1 <- posterior_epred(linFit11)
+linFit11EPreds2 <- colMeans(linFit11EPreds1)
+mean(abs(linFit11EPreds2 - StormdataTrain3$VMAX))
+
+## STUDENT T ----
+### Model 1 ----
 studentFit1 <- brm(
   formula = VMAX ~ 
     #Year +
@@ -921,11 +1003,216 @@ bayes_R2(studentFit1)
 
 bayes_factor(studentFit1, linFit9)
 bayes_factor(studentFit1, linFit10)
+bayes_factor(studentFit1, linFit11)
 
 conditional_smooths(studentFit1)
 conditional_effects(studentFit1)
 
+### Model 11 ----
+studentFit4 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    s(StormElapsedTime) + 
+    #I(StormElapsedTime^2) +
+    s(LAT, LON) +
+    basin + 
+    t2(LAT, LON, StormElapsedTime) +
+    #LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7, 
+  family = student(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
 
+prior_summary(studentFit4)
+posterior_summary(studentFit4)
+studentFit4
+
+print(studentFit4, digits = 4)
+plot(studentFit4)
+pp_check(studentFit4, ndraws = 100)
+loo(studentFit4, linFit10)
+waic(studentFit4)
+performance::check_distribution(studentFit4)
+performance::check_outliers(studentFit4)
+performance::check_heteroskedasticity(studentFit4)
+performance_rmse(studentFit4)
+performance_mae(studentFit4)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(studentFit4)
+
+
+variance_decomposition(studentFit4)
+exp(fixef(studentFit4))
+ranef(studentFit4)
+
+bayes_R2(studentFit4)
+
+bayes_factor(studentFit4, gammaFit1)
+bayes_factor(studentFit4, studentFit1)
+bayes_factor(studentFit4, linFit10)
+bayes_factor(studentFit4, linFit11)
+bayes_factor(studentFit4, propFit1)
+bayes_factor(studentFit4, logPropFit1)
+
+
+### Model 2 ----
+studentFit2 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    #s(StormElapsedTime) + 
+    #I(StormElapsedTime^2) +
+    basin + 
+    t2(LAT, LON, StormElapsedTime) +
+    #LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7, 
+  family = student(link = "identity"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+
+prior_summary(studentFit2)
+posterior_summary(studentFit2)
+studentFit2
+
+print(studentFit2, digits = 4)
+plot(studentFit2)
+pp_check(studentFit2, ndraws = 100)
+loo(studentFit2, linFit10)
+waic(studentFit2)
+performance::check_distribution(studentFit2)
+performance::check_outliers(studentFit2)
+performance::check_heteroskedasticity(studentFit2)
+performance_rmse(studentFit2)
+performance_mae(studentFit2)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(studentFit2)
+
+
+variance_decomposition(studentFit2)
+exp(fixef(studentFit2))
+ranef(studentFit2)
+
+bayes_R2(studentFit2)
+
+bayes_factor(studentFit2, gammaFit1)
+bayes_factor(studentFit2, studentFit1)
+bayes_factor(studentFit2, linFit10)
+bayes_factor(studentFit2, linFit11)
+bayes_factor(studentFit2, propFit1)
+bayes_factor(studentFit2, logPropFit1)
+
+### Model 3 ----
+studentFit3 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    #s(StormElapsedTime) + 
+    #I(StormElapsedTime^2) +
+    #s(LAT, LON) +
+    basin + 
+    t2(LAT, LON, StormElapsedTime) +
+    #LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7, 
+  family = student(link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52, 
+  warmup = 1000
+)
+
+prior_summary(studentFit3)
+posterior_summary(studentFit3)
+studentFit3
+
+print(studentFit3, digits = 4)
+plot(studentFit3)
+pp_check(studentFit3, ndraws = 100)
+loo(studentFit3, studentFit2)
+waic(studentFit3)
+performance::check_distribution(studentFit3)
+performance::check_outliers(studentFit3)
+performance::check_heteroskedasticity(studentFit3)
+performance_rmse(studentFit3)
+performance_mae(studentFit3)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(studentFit3)
+
+
+variance_decomposition(studentFit3)
+exp(fixef(studentFit3))
+ranef(studentFit3)
+
+bayes_R2(studentFit3)
+
+bayes_factor(studentFit3, studentFit1)
+bayes_factor(studentFit3, studentFit2)
+
+conditional_smooths(studentFit3)
+conditional_effects(studentFit3)
+
+## GAMMA ----
+### Model 1 ----
 gammaFit1 <- brm(
   formula = VMAX ~ 
     #Year +
@@ -996,6 +1283,7 @@ gammapostEPreds1 <- posterior_epred(gammaFit1)
 gammapostEPreds2 <- colMeans(gammapostEPreds1)
 mean(abs(gammapostEPreds2 - StormdataTrain3$VMAX))
 
+#### Cross Validation ----
 set.seed(52)
 folds <- kfold_split_random(K = 5, N = nrow(StormdataTrain7))
 foldFits <- list()
@@ -1048,6 +1336,7 @@ totalPreds <- matrix( , nrow = 4000, ncol = 0)
 predMeans <- c()
 predLower <- c()
 predUpper <- c()
+set.seed(52)
 for(j in 1:5){
   predDat <- foldPredList[[j]] |>
     select(-VMAX)
@@ -1062,52 +1351,71 @@ for(j in 1:5){
   predLower <- c(predLower, predLowerT)
   predUpper <- c(predUpper, predUpperT)
 }
-mean(predMeans)
-mean(predLower & predUpper)
-mean(predUpper)
 
-foldsIndex1 <- which(folds == 1)
-foldsIndex2 <- which(folds == 2)
-foldsIndex3 <- which(folds == 3)
-foldsIndex4 <- which(folds == 4)
-foldsIndex5 <- which(folds == 5)
+#### MAE and COV ----
+cvMAE <- mean(predMeans)
+cvCov <- mean(predLower & predUpper)
 
-totalfoldIndex <- c(foldsIndex5,
-                    foldsIndex4,
-                    foldsIndex3,
-                    foldsIndex2,
-                    foldsIndex1)
+cvMetrics <- tibble(
+  MAE_HWRF = mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF)),
+  MAE_fit = cvMAE,
+  COV = cvCov
+)
+cvMetrics
 
-totalPredsDF <- data.frame(totalPreds) |> select(totalfoldIndex)
-predMeans <- apply(totalPredsDF, 2, function(x){mean(x)})
-predLower <- apply(totalPredsDF, 2, function(x){quantile(x, 0.025)})
-predUpper <- apply(totalPredsDF, 2, function(x){quantile(x, 0.975)})
 
-predDF <- StormdataTrain3 |>
-  select(HWRF, VMAX) |>
-  bind_cols(predMeans = predMeans,
-            predLower = predLower, 
-            predUpper = predUpper)
+##### Using loo ----
+logLikGamma <- log_lik(gammaFit1)
 
-predSumDF <- predDF |>
-  summarise(
-    MAE = mean(abs(VMAX - predMeans)),
-    COV = mean(between(VMAX, predLower, predUpper))
-  )
-predSumDF
+# foldsIndex1 <- which(folds == 1)
+# foldsIndex2 <- which(folds == 2)
+# foldsIndex3 <- which(folds == 3)
+# foldsIndex4 <- which(folds == 4)
+# foldsIndex5 <- which(folds == 5)
+# 
+# totalfoldIndex <- c(foldsIndex5,
+#                     foldsIndex4,
+#                     foldsIndex3,
+#                     foldsIndex2,
+#                     foldsIndex1)
+# 
+# totalPredsDF <- data.frame(totalPreds) |> select(totalfoldIndex)
+# predMeans <- apply(totalPredsDF, 2, function(x){mean(x)})
+# predLower <- apply(totalPredsDF, 2, function(x){quantile(x, 0.025)})
+# predUpper <- apply(totalPredsDF, 2, function(x){quantile(x, 0.975)})
+# 
+# predDF <- StormdataTrain3 |>
+#   select(HWRF, VMAX) |>
+#   bind_cols(predMeans = predMeans,
+#             predLower = predLower, 
+#             predUpper = predUpper)
+# 
+# predSumDF <- predDF |>
+#   summarise(
+#     MAE_HWRF = mean(abs(VMAX - HWRF)),
+#     MAE_fit = mean(abs(VMAX - predMeans)),
+#     COV = mean(between(VMAX, predLower, predUpper))
+#   )
+# predSumDF
 
+#### Variable Selection ----
+varSelGamma <- varsel(gammaFit1)
+
+#### Prediction ----
+##### Test Data ----
+# Remove not varying 
 StormdataTest2 <- StormdataTest |>
   select(-lead_time)
 
 # Create Date vars 
-dataYearsTest <- year(StormdataTest2$Date)
-dataMonthsTest <- month(StormdataTest2$Date, label = TRUE)
-dataDaysTest <- day(StormdataTest2$Date)
+dataYears <- year(StormdataTest2$Date)
+dataMonths <- month(StormdataTest2$Date, label = TRUE)
+dataDays <- day(StormdataTest2$Date)
 
 StormdataTest3 <- StormdataTest2 |>
   mutate(
-    Year = factor(dataYearsTest, ordered = TRUE),
-    Month = dataMonthsTest
+    Year = factor(dataYears, ordered = TRUE),
+    Month = dataMonths
   ) |>
   group_by(StormID) |>
   mutate(
@@ -1164,25 +1472,42 @@ str(StormdataTestFinal)
 
 
 finalPreds <- posterior_predict(gammaFit1, 
-                                newdata = StormdataTestFinal)
-finalPreds <- posterior_predict(gammaFit1, 
+                                newdata = StormdataTestFinal,
+                                allow_new_levels = TRUE)
+finalPreds <- posterior_epred(gammaFit1, 
                                 newdata = StormdataTestFinal,
                                 allow_new_levels = TRUE)
 finalPreds2 <- colMeans(finalPreds)
-Actual_Y <- fread("_data/Actual Y.csv")
-Actual_Yvec <- Actual_Y |> filter(complete.cases(x)) |> pull(x)
+
 mean(abs(finalPreds2 - Actual_Yvec))
 mean(abs(StormdataTest3$HWRF - Actual_Yvec))
+finalPredsMed <- apply(finalPreds, 2, function(x){quantile(x, 0.5)})
+finalPredsLCB <- apply(finalPreds, 2, function(x){quantile(x, 0.025)})
+finalPredsUCB <- apply(finalPreds, 2, function(x){quantile(x, 0.975)})
+
+predMetrics <- tibble(
+  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
+  MAE_fit = mean(abs(finalPreds2 - Actual_Yvec)),
+  MAD_fit = mean(abs(finalPredsMed - Actual_Yvec)),
+  COV = mean(finalPredsLCB < Actual_Yvec & Actual_Yvec < finalPredsUCB)
+)
+predMetrics
+
+ppc_dens_overlay(y = Actual_Yvec, yrep = finalPreds)
+
+cv_varsel(gammaFit1)
 
 
+
+### Model 2 ----
 gammaFit2 <- brm(
   formula = VMAX ~ 
     #Year +
     Month +
-    s(StormElapsedTime) + 
+    #s(StormElapsedTime) + 
     #I(StormElapsedTime^2) +
     basin + 
-    t2(LAT, LON) +
+    t2(LAT, LON, StormElapsedTime) +
     #LON +
     MINSLP +
     SHR_MAG +
@@ -1217,7 +1542,7 @@ gammaFit2
 print(gammaFit2, digits = 4)
 plot(gammaFit2)
 pp_check(gammaFit2, ndraws = 100)
-loo(gammaFit2, studentFit1)
+loo(gammaFit2, gammaFit1)
 waic(gammaFit2)
 performance::check_distribution(gammaFit2)
 performance::check_outliers(gammaFit2)
@@ -1234,18 +1559,20 @@ ranef(gammaFit2)
 
 bayes_R2(gammaFit2)
 
-bayes_factor(gammaFit2, gammaFit4)
-bayes_factor(gammaFit2, gammaFit5)
+bayes_factor(gammaFit2, gammaFit1)
 bayes_factor(gammaFit2, studentFit1)
+bayes_factor(gammaFit2, linFit11)
+bayes_factor(gammaFit2, propFit1)
+bayes_factor(gammaFit2, logPropFit1)
 
 conditional_smooths(gammaFit2)
 conditional_effects(gammaFit2)
 
-gammapostEPreds2 <- posterior_epred(gammaFit2)
-gammapostEPreds2 <- colMeans(gammapostEPreds2)
-mean(abs(gammapostEPreds2 - StormdataTrain3$VMAX))
+gammaFit2EPreds1 <- posterior_epred(gammaFit2)
+gammaFit2EPreds2 <- colMeans(gammaFit2EPreds1)
+mean(abs(gammaFit2EPreds2 - StormdataTrain3$VMAX))
 
-
+## GAUSSIAN PROP ----
 StormdataTrain8 <- StormdataTrain3 |>
   select(
     "StormID",
@@ -1282,12 +1609,15 @@ StormdataTrain8 <- StormdataTrain3 |>
   mutate(
     across(where(is.numeric) & !c(VMAX, HWRF, StormElapsedTime, LAT, LON),
            function(x){scale(x)})
+  ) |>
+  mutate(
+    propVMAX = VMAX/HWRF
   )
 str(StormdataTrain8)
 
-
+### Model 1 ----
 propFit1 <- brm(
-  formula = VMAX/HWRF ~ 
+  formula = propVMAX ~ 
     #Year +
     Month +
     s(StormElapsedTime) + 
@@ -1328,31 +1658,52 @@ propFit1
 print(propFit1, digits = 4)
 plot(propFit1)
 pp_check(propFit1, ndraws = 100)
-loo(propFit1)
+loo(propFit1, studentFit1)
+waic(propFit1)
 performance::check_distribution(propFit1)
 performance::check_outliers(propFit1)
 performance::check_heteroskedasticity(propFit1)
 performance_rmse(propFit1)
 performance_mae(propFit1)
+mean(abs(StormdataTrain8$VMAX - StormdataTrain8$HWRF))
+model_performance(propFit1)
+
 
 variance_decomposition(propFit1)
-fixef(propFit1)
+exp(fixef(propFit1))
 ranef(propFit1)
 
 bayes_R2(propFit1)
 
-bayes_factor(propFit1, linFit9)
-bayes_factor(propFit1, linFit10)
+bayes_factor(propFit1, propFit4)
+bayes_factor(propFit1, propFit5)
+bayes_factor(propFit1, studentFit1)
 
 conditional_smooths(propFit1)
 conditional_effects(propFit1)
 
-propPreds <- posterior_epred(propFit1)
-propMAE <- loo_predictive
+proppostEPreds1 <- posterior_epred(propFit1)
+proppostEPreds2 <- colMeans(proppostEPreds1)
+mean(abs(proppostEPreds2 - StormdataTrain3$VMAX))
 
+propPredsMean <- apply(proppostEPreds1, 2, function(x){mean(x)})
+propPredsMed <- apply(proppostEPreds1, 2, function(x){quantile(x, 0.5)})
+propPredsLCB <- apply(proppostEPreds1, 2, function(x){quantile(x, 0.025)})
+propPredsUCB <- apply(proppostEPreds1, 2, function(x){quantile(x, 0.975)})
 
-loglinFit1 <- brm(
-  formula = log(VMAX) ~ 
+predMetrics <- tibble(
+  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
+  MAE_fit = mean(abs(propPreds2 - Actual_Yvec)),
+  MAD_fit = mean(abs(propPredsMed - Actual_Yvec)),
+  COV = mean(propPredsLCB < Actual_Yvec & Actual_Yvec < propPredsUCB)
+)
+predMetrics
+
+ppc_dens_overlay(y = Actual_Yvec, yrep = finalPreds)
+
+### Model 2 (log) ----
+logPropFit1 <- brm(
+  formula = log(propVMAX) ~ 
     #Year +
     Month +
     s(StormElapsedTime) + 
@@ -1375,9 +1726,9 @@ loglinFit1 <- brm(
     COUPLSYM3 +
     HWFI +
     VMAX_OP_T0 +
-    HWRF +
+    #HWRF +
     (1|StormID),
-  data = StormdataTrain6, 
+  data = StormdataTrain8, 
   family = gaussian(), 
   save_pars = save_pars(all = TRUE), 
   chains = 4,
@@ -1385,25 +1736,58 @@ loglinFit1 <- brm(
   seed = 52, 
   warmup = 1000
 )
-prior_summary(loglinFit1)
-posterior_summary(loglinFit1)
-loglinFit1
+prior_summary(logPropFit1)
+posterior_summary(logPropFit1)
+logPropFit1
 
-print(loglinFit1, digits = 4)
-plot(loglinFit1)
-pp_check(loglinFit1, ndraws = 200)
-loo(loglinFit1)
-performance::check_distribution(loglinFit1)
-performance::check_outliers(loglinFit1)
-performance::check_heteroskedasticity(loglinFit1)
-performance_rmse(loglinFit1)
-performance_mae(loglinFit1)
+print(logPropFit1, digits = 4)
+plot(logPropFit1)
+pp_check(logPropFit1, ndraws = 100)
+loo(logpropFit1)
+loo(logPropFit1, gammaFit1)
+waic(logPropFit1)
+performance::check_distribution(logPropFit1)
+performance::check_outliers(logPropFit1)
+performance::check_heteroskedasticity(logPropFit1)
+performance_rmse(logPropFit1)
+performance_mae(logPropFit1)
+mean(abs(StormdataTrain8$VMAX - StormdataTrain8$HWRF))
+model_performance(logPropFit1)
+logPropvs <- varsel(logPropFit1)
+varImp(logPropFit1)
 
+variance_decomposition(logPropFit1)
+exp(fixef(logPropFit1))
+ranef(logPropFit1)
 
-variance_decomposition(loglinFit1)
-fixef(loglinFit1)
-ranef(loglinFit1)
+bayes_R2(logPropFit1)
 
+bayes_factor(logPropFit1, logPropFit4)
+bayes_factor(logPropFit1, logPropFit5)
+bayes_factor(logPropFit1, studentFit1)
+
+conditional_smooths(logPropFit1)
+conditional_effects(logPropFit1)
+
+logPropEPreds1 <- posterior_epred(logPropFit1)
+logPropEPreds2 <- colMeans(logPropEPreds1)
+logPropEPreds3 <- exp(logPropEPreds2)*StormdataTrain8$HWRF
+mean(abs(logPropEPreds3 - StormdataTrain3$VMAX))
+
+logPropPredsMean <- apply(logPropEPreds1, 2, function(x){mean(x)})
+logPropPredsMed <- apply(logPropEPreds1, 2, function(x){quantile(x, 0.5)})
+logPropPredsLCB <- apply(logPropEPreds1, 2, function(x){quantile(x, 0.025)})
+logPropPredsUCB <- apply(logPropEPreds1, 2, function(x){quantile(x, 0.975)})
+
+predMetrics <- tibble(
+  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
+  MAE_fit = mean(abs(logPropPreds2 - Actual_Yvec)),
+  MAD_fit = mean(abs(logPropPredsMed - Actual_Yvec)),
+  COV = mean(logPropPredsLCB < Actual_Yvec & Actual_Yvec < logPropPredsUCB)
+)
+predMetrics
+
+ppc_dens_overlay(y = Actual_Yvec, yrep = finalPreds)
 
 
 
@@ -1483,130 +1867,4 @@ ranef(loglinFit1)
 # )
 
 
-# 5. Prediction ====
-completeStormdata <- Stormdata_raw |>
-  mutate(
-    Observed = ifelse(is.na(VMAX), "Predict", "Observed")
-  )
-
-Actual_Y <- Stormdata_raw |> 
-  select(-VMAX) |>
-  cbind(Actual_Y)
-
-for(i in 1:nrow(completeStormdata)){
-  if(is.na(completeStormdata$VMAX[i])){
-    completeStormdata$VMAX[i] <- Actual_Y$VMAX[i]
-  }
-}
-
-completeStormdata |>
-  filter(Observed == "Observed") |>
-  summarise(
-    mean(abs(HWRF - VMAX))
-  )
-
-
-
-
-
-
-## Create training and test data sets ----
-training_data <- Stormdata |> filter(complete.cases(VMAX))
-test_data <- Stormdata |> filter(!complete.cases(VMAX))
-
-
-# 1. Model description ----
-## Load data ----
-Y <- training_data$VMAX
-Z <- log(Y)
-X <- training_data |>
-  select(-c(
-    StormID,
-    Date,
-    basin,
-    lead_time,
-    LAT,
-    LON,
-    MINSLP,
-    SHR_MAG,
-    STM_SPD,
-    SST,
-    RHLO,
-    CAPE1,
-    CAPE3,
-    SHTFL2,
-    TCOND7002,
-    INST2,
-    CP1,
-    TCONDSYM2,
-    HWFI,
-    VMAX_OP_T0,
-    VMAX
-  ))
-Xscale <- scale(X)
-Xscale <- cbind("Intercept" = rep(1,length(Y)), Xscale)
-HWRF <- training_data$HWRF
-
-### Create StormID indicator for random effects model ----
-StormIDs <- training_data |> select(StormID)
-Storms <- unique(StormIDs$StormID)
-IDs <- 1:length(Storms)
-Storms <- data.frame(
-  StormID = Storms,
-  ID = IDs
-)
-StormIDs <- left_join(StormIDs, Storms)
-StormID <- StormIDs$ID
-
-n <- length(Y)
-p <- ncol(Xscale)
-N <- length(IDs)
-
-burn <- 10000
-iters <- 20000
-chains <- 2
-thin <- 5
-
-# 2. Old Analysis ----
-outputDF <- fread(file = "PollardTyler.csv")
-colnames(outputDF) <- c("HWRF", "VMAXtlyer", "Ltyler", "Utyler")
-
-ActualY <- read.csv("Actual Y.csv")
-
-TotalY <- cbind(outputDF, ActualY)
-TotalYpreds <- TotalY |> filter(!is.na(x))
-
-MAD1 <- mean(abs(TotalYpreds$Y - TotalYpreds$x))
-COV1 <- mean( (TotalYpreds$L <= TotalYpreds$x) & (TotalYpreds$x <= TotalYpreds$U))
-
-MADtyler <- mean(abs(TotalYpreds$VMAXtlyer - TotalYpreds$x))
-COVtyler <- mean( (TotalYpreds$Ltyler <= TotalYpreds$x) & (TotalYpreds$x <= TotalYpreds$Utyler))
-
-MAD1
-MADtyler
-
-COV1
-COVtyler
-
-
-# 3. New Analysis ----
-Y <- Stormdata$VMAX[complete.cases(Stormdata$VMAX)]
-newDF <- cbind(Xscale, Y) |> as.data.frame()
-fit1 <- generalTestBF(Y ~ .,
-                      data = newDF)
-fit2 <- stan_glm(Y ~ .,
-                 data = newDF)
-fit2
-summary(fit2, digits = 3, probs = c(0.025, 0.975))
-car::vif(fit2)
-
-pp_check(fit2, nreps = 1000)
-ppc_bars(Y, posterior_predict(fit2))
-
-fit2 <- stan_glm(log(Y) ~ .,
-                 data = newDF,
-                 family = gaussian())
-fit2
-summary(fit2, digits = 3, probs = c(0.025, 0.975))
-car::vif(fit2)
 
