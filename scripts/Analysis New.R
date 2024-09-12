@@ -1187,7 +1187,7 @@ studentFit3
 
 print(studentFit3, digits = 4)
 plot(studentFit3)
-pp_check(studentFit3, ndraws = 100)
+pp_check(studentFit3, ndraws = 100) + xlim(c(-20, 300))
 loo(studentFit3, studentFit2)
 waic(studentFit3)
 performance::check_distribution(studentFit3)
@@ -1210,6 +1210,8 @@ bayes_factor(studentFit3, studentFit2)
 
 conditional_smooths(studentFit3)
 conditional_effects(studentFit3)
+
+predsStud <- posterior_epred(studentFit3)
 
 ## GAMMA ----
 ### Model 1 ----
@@ -1571,6 +1573,83 @@ conditional_effects(gammaFit2)
 gammaFit2EPreds1 <- posterior_epred(gammaFit2)
 gammaFit2EPreds2 <- colMeans(gammaFit2EPreds1)
 mean(abs(gammaFit2EPreds2 - StormdataTrain3$VMAX))
+
+### Model 2 ----
+gammaFit3 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    #Month +
+    #s(StormElapsedTime) + 
+    #I(StormElapsedTime^2) +
+    #basin + 
+    t2(LAT, LON, StormElapsedTime, d = c(2,1)) +
+    #LON +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7, 
+  family = brmsfamily("Gamma", link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 200,
+  seed = 52, 
+  thin = 10,
+  warmup = 100
+)
+
+prior_summary(gammaFit3)
+posterior_summary(gammaFit3)
+gammaFit3
+
+print(gammaFit3, digits = 4)
+plot(gammaFit3)
+pp_check(gammaFit3, ndraws = 40)
+loo(gammaFit3, gammaFit1)
+waic(gammaFit3)
+performance::check_distribution(gammaFit3)
+performance::check_outliers(gammaFit3)
+performance::check_heteroskedasticity(gammaFit3)
+performance_rmse(gammaFit3)
+performance_mae(gammaFit3)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(gammaFit3)
+
+
+variance_decomposition(gammaFit3)
+exp(fixef(gammaFit3))
+ranef(gammaFit3)
+
+bayes_R2(gammaFit3)
+
+bayes_factor(gammaFit3, gammaFit1)
+bayes_factor(gammaFit3, gammaFit2)
+bayes_factor(gammaFit3, studentFit1)
+bayes_factor(gammaFit3, studentFit1)
+bayes_factor(gammaFit3, studentFit3)
+bayes_factor(gammaFit3, linFit11)
+bayes_factor(gammaFit3, propFit1)
+bayes_factor(gammaFit3, logPropFit1)
+
+conditional_smooths(gammaFit3)
+conditional_effects(gammaFit3)
+
+gammaFit3EPreds1 <- posterior_epred(gammaFit3)
+gammaFit3EPreds2 <- colMeans(gammaFit3EPreds1)
+mean(abs(gammaFit3EPreds2 - StormdataTrain3$VMAX))
 
 ## GAUSSIAN PROP ----
 StormdataTrain8 <- StormdataTrain3 |>
