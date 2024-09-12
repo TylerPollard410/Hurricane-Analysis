@@ -23,8 +23,6 @@ library(performance)
 library(tidyverse)
 
 # Read in data ----
-## Clean data ----
-### Training ----
 Stormdata_raw <- fread("~/Desktop/Hurricane Analysis/_data/E2_data.csv")
 Stormdata <- Stormdata_raw |>
   mutate(
@@ -33,10 +31,6 @@ Stormdata <- Stormdata_raw |>
     Date = as_datetime(Date, tz = "UTC")
   )
 
-### Test ----
-Actual_Y <- fread("_data/Actual Y.csv")
-Actual_Yvec <- Actual_Y |> filter(complete.cases(x)) |> pull(x)
-
 # str(Stormdata)
 
 # Timediff <- Stormdata |>
@@ -44,15 +38,14 @@ Actual_Yvec <- Actual_Y |> filter(complete.cases(x)) |> pull(x)
 #   summarise(
 #     difftime(Date, lag(Date, default = Date[1]), units = "hours")
 #   )
-# 
 # nondense <- which(Timediff$`difftime(Date, lag(Date, default = Date[1]), units = "hours")` > 6)
 # nondenseID <- Stormdata |> slice(nondense)
 
-## Create training and test data sets ----
-StormdataTrain <- Stormdata |> filter(complete.cases(VMAX))
-StormdataTest <- Stormdata |> filter(!complete.cases(VMAX))
 
-## Transform data ----
+## Clean data ----
+### Training ----
+StormdataTrain <- Stormdata |> filter(complete.cases(VMAX))
+
 # Remove not varying 
 StormdataTrain2 <- StormdataTrain |>
   select(-lead_time)
@@ -62,6 +55,7 @@ dataYears <- year(StormdataTrain2$Date)
 dataMonths <- month(StormdataTrain2$Date, label = TRUE)
 dataDays <- day(StormdataTrain2$Date)
 
+#### Train 3 ----
 StormdataTrain3 <- StormdataTrain2 |>
   mutate(
     Year = factor(dataYears, ordered = TRUE),
@@ -83,8 +77,278 @@ StormdataTrain3 <- StormdataTrain2 |>
 
 summary(StormdataTrain3$VMAX)
 
-## Plot VMAX ----
-### Histogram ----
+#### Train 4 ----
+StormdataTrain4 <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID)
+  )
+str(StormdataTrain4)
+
+
+#### Train 5 ----
+StormdataTrain5 <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  )
+str(StormdataTrain5)
+
+#### Train 6 ----
+StormdataTrain6 <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !VMAX, function(x){scale(x)})
+  )
+str(StormdataTrain6)
+
+#### Train 7 ----
+StormdataTrain7 <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime, LAT, LON),
+           function(x){scale(x)})
+  )
+str(StormdataTrain7)
+
+#### Train 8 ----
+StormdataTrain8 <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, HWRF, StormElapsedTime, LAT, LON),
+           function(x){scale(x)})
+  ) |>
+  mutate(
+    propVMAX = VMAX/HWRF
+  )
+str(StormdataTrain8)
+
+### Test ----
+StormdataTest <- Stormdata |> filter(!complete.cases(VMAX))
+
+# Remove not varying 
+StormdataTest2 <- StormdataTest |>
+  select(-lead_time)
+
+# Create Date vars 
+dataYears <- year(StormdataTest2$Date)
+dataMonths <- month(StormdataTest2$Date, label = TRUE)
+dataDays <- day(StormdataTest2$Date)
+
+#### Test 3 ----
+StormdataTest3 <- StormdataTest2 |>
+  mutate(
+    Year = factor(dataYears, ordered = TRUE),
+    Month = dataMonths
+  ) |>
+  group_by(StormID) |>
+  mutate(
+    StormElapsedTime = as.numeric(difftime(Date, min(Date), units = "hours"))
+  ) |>
+  select(
+    StormID,
+    Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    everything()
+  ) |>
+  ungroup()
+
+#### Test Final ----
+StormdataTestFinal <- StormdataTest3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime, LAT, LON),
+           function(x){scale(x)})
+  )
+str(StormdataTestFinal)
+
+### Actual ----
+Actual_Y <- fread("_data/Actual Y.csv")
+Actual_Yvec <- Actual_Y |> filter(complete.cases(x)) |> pull(x)
+
+
+# Plot VMAX ----
+## Histogram ----
 ggplot(data = StormdataTrain3) +
   geom_histogram(
     aes(x = VMAX, after_stat(density)),
@@ -127,7 +391,7 @@ ggplot(data = StormdataTrain3) +
     plot.subtitle = element_text(size = 12)
   )
 
-### Time ----
+## Time ----
 ggplot(data = StormdataTrain3) +
   geom_point(aes(x = Date, y = VMAX)) +
   scale_x_datetime(date_breaks = "month", 
@@ -138,7 +402,7 @@ ggplot(data = StormdataTrain3) +
   )
 
 
-### Map ----
+## Map ----
 # Do by time next
 world_coordinates <- map_data("world") 
 ggplot() + 
@@ -161,38 +425,7 @@ ggplot() +
 # Fit model ----
 ## GAUSSIAN ----
 ### Model 1 ----
-StormdataTrain4 <- StormdataTrain3 |>
-  select(
-    "StormID",
-    #Date,
-    Year,
-    Month,
-    StormElapsedTime,
-    "basin",
-    "LAT",
-    "LON",
-    "MINSLP",
-    "SHR_MAG",
-    "STM_SPD",
-    "SST",
-    "RHLO",
-    "CAPE1",
-    "CAPE3",
-    "SHTFL2",
-    "TCOND7002",
-    "INST2",
-    "CP1",
-    "TCONDSYM2",
-    "COUPLSYM3",
-    "HWFI",
-    "VMAX_OP_T0",
-    "HWRF",
-    "VMAX"
-  ) |>
-  mutate(
-    StormID = droplevels(StormID)
-  )
-str(StormdataTrain4)
+
 
 linFit1 <- brm(
   formula = VMAX ~ 
@@ -245,40 +478,6 @@ ranef(linFit1)
 
 
 ### Model 2 ----
-StormdataTrain5 <- StormdataTrain3 |>
-  select(
-    "StormID",
-    #Date,
-    Year,
-    Month,
-    StormElapsedTime,
-    "basin",
-    "LAT",
-    "LON",
-    "MINSLP",
-    "SHR_MAG",
-    "STM_SPD",
-    "SST",
-    "RHLO",
-    "CAPE1",
-    "CAPE3",
-    "SHTFL2",
-    "TCOND7002",
-    "INST2",
-    "CP1",
-    "TCONDSYM2",
-    "COUPLSYM3",
-    "HWFI",
-    "VMAX_OP_T0",
-    "HWRF",
-    "VMAX"
-  ) |>
-  mutate(
-    StormID = droplevels(StormID),
-    Year = factor(Year, ordered = FALSE),
-    Month = factor(Month, ordered = FALSE)
-  )
-str(StormdataTrain5)
 
 linFit2 <- brm(
   formula = VMAX ~ 
@@ -332,43 +531,6 @@ ranef(linFit2)
 bayes_factor(linFit1, linFit2)
 
 ### Model 3 ----
-StormdataTrain6 <- StormdataTrain3 |>
-  select(
-    "StormID",
-    #Date,
-    Year,
-    Month,
-    StormElapsedTime,
-    "basin",
-    "LAT",
-    "LON",
-    "MINSLP",
-    "SHR_MAG",
-    "STM_SPD",
-    "SST",
-    "RHLO",
-    "CAPE1",
-    "CAPE3",
-    "SHTFL2",
-    "TCOND7002",
-    "INST2",
-    "CP1",
-    "TCONDSYM2",
-    "COUPLSYM3",
-    "HWFI",
-    "VMAX_OP_T0",
-    "HWRF",
-    "VMAX"
-  ) |>
-  mutate(
-    StormID = droplevels(StormID),
-    Year = factor(Year, ordered = FALSE),
-    Month = factor(Month, ordered = FALSE)
-  ) |>
-  mutate(
-    across(where(is.numeric) & !VMAX, function(x){scale(x)})
-  )
-str(StormdataTrain6)
 
 linFit3 <- brm(
   formula = VMAX ~ 
@@ -707,44 +869,6 @@ conditional_smooths(linFit8)
 conditional_effects(linFit8)
 
 ### Model 9 ----
-StormdataTrain7 <- StormdataTrain3 |>
-  select(
-    "StormID",
-    #Date,
-    Year,
-    Month,
-    StormElapsedTime,
-    "basin",
-    "LAT",
-    "LON",
-    "MINSLP",
-    "SHR_MAG",
-    "STM_SPD",
-    "SST",
-    "RHLO",
-    "CAPE1",
-    "CAPE3",
-    "SHTFL2",
-    "TCOND7002",
-    "INST2",
-    "CP1",
-    "TCONDSYM2",
-    "COUPLSYM3",
-    "HWFI",
-    "VMAX_OP_T0",
-    "HWRF",
-    "VMAX"
-  ) |>
-  mutate(
-    StormID = droplevels(StormID),
-    Year = factor(Year, ordered = FALSE),
-    Month = factor(Month, ordered = FALSE)
-  ) |>
-  mutate(
-    across(where(is.numeric) & !c(VMAX, StormElapsedTime, LAT, LON),
-           function(x){scale(x)})
-  )
-str(StormdataTrain7)
 
 linFit9 <- brm(
   formula = VMAX ~ 
@@ -1187,7 +1311,7 @@ studentFit3
 
 print(studentFit3, digits = 4)
 plot(studentFit3)
-pp_check(studentFit3, ndraws = 100)
+pp_check(studentFit3, ndraws = 100) + xlim(c(-20, 300))
 loo(studentFit3, studentFit2)
 waic(studentFit3)
 performance::check_distribution(studentFit3)
@@ -1210,6 +1334,8 @@ bayes_factor(studentFit3, studentFit2)
 
 conditional_smooths(studentFit3)
 conditional_effects(studentFit3)
+
+predsStud <- posterior_epred(studentFit3)
 
 ## GAMMA ----
 ### Model 1 ----
@@ -1403,72 +1529,7 @@ varSelGamma <- varsel(gammaFit1)
 
 #### Prediction ----
 ##### Test Data ----
-# Remove not varying 
-StormdataTest2 <- StormdataTest |>
-  select(-lead_time)
 
-# Create Date vars 
-dataYears <- year(StormdataTest2$Date)
-dataMonths <- month(StormdataTest2$Date, label = TRUE)
-dataDays <- day(StormdataTest2$Date)
-
-StormdataTest3 <- StormdataTest2 |>
-  mutate(
-    Year = factor(dataYears, ordered = TRUE),
-    Month = dataMonths
-  ) |>
-  group_by(StormID) |>
-  mutate(
-    StormElapsedTime = as.numeric(difftime(Date, min(Date), units = "hours"))
-  ) |>
-  select(
-    StormID,
-    Date,
-    Year,
-    Month,
-    StormElapsedTime,
-    everything()
-  ) |>
-  ungroup()
-
-StormdataTestFinal <- StormdataTest3 |>
-  select(
-    "StormID",
-    #Date,
-    Year,
-    Month,
-    StormElapsedTime,
-    "basin",
-    "LAT",
-    "LON",
-    "MINSLP",
-    "SHR_MAG",
-    "STM_SPD",
-    "SST",
-    "RHLO",
-    "CAPE1",
-    "CAPE3",
-    "SHTFL2",
-    "TCOND7002",
-    "INST2",
-    "CP1",
-    "TCONDSYM2",
-    "COUPLSYM3",
-    "HWFI",
-    "VMAX_OP_T0",
-    "HWRF",
-    "VMAX"
-  ) |>
-  mutate(
-    StormID = droplevels(StormID),
-    Year = factor(Year, ordered = FALSE),
-    Month = factor(Month, ordered = FALSE)
-  ) |>
-  mutate(
-    across(where(is.numeric) & !c(VMAX, StormElapsedTime, LAT, LON),
-           function(x){scale(x)})
-  )
-str(StormdataTestFinal)
 
 
 finalPreds <- posterior_predict(gammaFit1, 
@@ -1572,48 +1633,160 @@ gammaFit2EPreds1 <- posterior_epred(gammaFit2)
 gammaFit2EPreds2 <- colMeans(gammaFit2EPreds1)
 mean(abs(gammaFit2EPreds2 - StormdataTrain3$VMAX))
 
+### Model 3 ----
+gammaFit3 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    basin + 
+    t2(LON, LAT, StormElapsedTime, d = c(2,1)) +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7, 
+  family = brmsfamily("Gamma", link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+
+prior_summary(gammaFit3)
+posterior_summary(gammaFit3)
+gammaFit3
+
+print(gammaFit3, digits = 4)
+plot(gammaFit3)
+pp_check(gammaFit3, ndraws = 40)
+loo(gammaFit3)
+waic(gammaFit3)
+performance::check_distribution(gammaFit3)
+performance::check_outliers(gammaFit3)
+performance::check_heteroskedasticity(gammaFit3)
+performance_rmse(gammaFit3)
+performance_mae(gammaFit3)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(gammaFit3)
+
+
+variance_decomposition(gammaFit3)
+exp(fixef(gammaFit3))
+ranef(gammaFit3)
+
+bayes_R2(gammaFit3)
+
+bayes_factor(gammaFit3, gammaFit1)
+bayes_factor(gammaFit3, gammaFit2)
+bayes_factor(gammaFit3, studentFit1)
+bayes_factor(gammaFit3, studentFit2)
+bayes_factor(gammaFit3, studentFit3)
+bayes_factor(gammaFit3, linFit11)
+bayes_factor(gammaFit3, propFit1)
+bayes_factor(gammaFit3, logPropFit1)
+loo(gammaFit1, gammaFit2, gammaFit3,
+    studentFit1, studentFit2, studentFit3,
+    linFit10, linFit11)
+
+conditional_smooths(gammaFit3)
+conditional_effects(gammaFit3)
+
+gammaFit3EPreds1 <- posterior_epred(gammaFit3)
+gammaFit3EPreds2 <- colMeans(gammaFit3EPreds1)
+mean(abs(gammaFit3EPreds2 - StormdataTrain3$VMAX))
+
+save(studentFit3, file = "_data/studentFit3.RData")
+
+### Model 4 ----
+gammaFit4 <- brm(
+  formula = VMAX ~ 
+    #Year +
+    Month +
+    basin + 
+    t2(LON, LAT, StormElapsedTime, d = c(2,1)) +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7, 
+  family = brmsfamily("Gamma", link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+
+prior_summary(gammaFit4)
+posterior_summary(gammaFit4)
+gammaFit4
+
+print(gammaFit4, digits = 4)
+plot(gammaFit4)
+pp_check(gammaFit4, ndraws = 40)
+loo(gammaFit4)
+waic(gammaFit4)
+performance::check_distribution(gammaFit4)
+performance::check_outliers(gammaFit4)
+performance::check_heteroskedasticity(gammaFit4)
+performance_rmse(gammaFit4)
+performance_mae(gammaFit4)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(gammaFit4)
+
+
+variance_decomposition(gammaFit4)
+exp(fixef(gammaFit4))
+ranef(gammaFit4)
+
+bayes_R2(gammaFit4)
+
+bayes_factor(gammaFit4, gammaFit1)
+bayes_factor(gammaFit4, gammaFit2)
+bayes_factor(gammaFit4, gammaFit3)
+bayes_factor(gammaFit4, studentFit1)
+bayes_factor(gammaFit4, studentFit2)
+bayes_factor(gammaFit4, studentFit3)
+bayes_factor(gammaFit4, linFit11)
+bayes_factor(gammaFit4, propFit1)
+bayes_factor(gammaFit4, logPropFit1)
+
+
+conditional_smooths(gammaFit4)
+conditional_effects(gammaFit4)
+
+gammaFit4EPreds1 <- posterior_epred(gammaFit4)
+gammaFit4EPreds2 <- colMeans(gammaFit4EPreds1)
+mean(abs(gammaFit4EPreds2 - StormdataTrain3$VMAX))
+
 ## GAUSSIAN PROP ----
-StormdataTrain8 <- StormdataTrain3 |>
-  select(
-    "StormID",
-    #Date,
-    Year,
-    Month,
-    StormElapsedTime,
-    "basin",
-    "LAT",
-    "LON",
-    "MINSLP",
-    "SHR_MAG",
-    "STM_SPD",
-    "SST",
-    "RHLO",
-    "CAPE1",
-    "CAPE3",
-    "SHTFL2",
-    "TCOND7002",
-    "INST2",
-    "CP1",
-    "TCONDSYM2",
-    "COUPLSYM3",
-    "HWFI",
-    "VMAX_OP_T0",
-    "HWRF",
-    "VMAX"
-  ) |>
-  mutate(
-    StormID = droplevels(StormID),
-    Year = factor(Year, ordered = FALSE),
-    Month = factor(Month, ordered = FALSE)
-  ) |>
-  mutate(
-    across(where(is.numeric) & !c(VMAX, HWRF, StormElapsedTime, LAT, LON),
-           function(x){scale(x)})
-  ) |>
-  mutate(
-    propVMAX = VMAX/HWRF
-  )
-str(StormdataTrain8)
 
 ### Model 1 ----
 propFit1 <- brm(
