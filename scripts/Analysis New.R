@@ -1475,8 +1475,8 @@ finalPreds <- posterior_predict(gammaFit1,
                                 newdata = StormdataTestFinal,
                                 allow_new_levels = TRUE)
 finalPreds <- posterior_epred(gammaFit1, 
-                                newdata = StormdataTestFinal,
-                                allow_new_levels = TRUE)
+                              newdata = StormdataTestFinal,
+                              allow_new_levels = TRUE)
 finalPreds2 <- colMeans(finalPreds)
 
 mean(abs(finalPreds2 - Actual_Yvec))
