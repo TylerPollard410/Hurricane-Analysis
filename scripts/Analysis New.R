@@ -139,7 +139,7 @@ ggplot() +
   # as input to plot world map 
   geom_map( 
     data = world_coordinates, map = world_coordinates, 
-    aes(x = long, y = lat, map_id = region) 
+    aes(map_id = region) 
   ) + 
   geom_point(
     data = StormdataTrain3,

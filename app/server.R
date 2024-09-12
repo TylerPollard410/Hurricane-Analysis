@@ -57,12 +57,11 @@ StormTableData <- Stormdata |>
     )
 
 # Plot functions ----
-## Column type ----
+# Column Type
 fact_columns <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is.factor(x)})]
 num_columns <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is.numeric(x)})]
 
-
-
+# Scatter Plot
 PlotScatter <- function(x, y = "VMAX", color = NULL, fit_line = FALSE, facet = NULL){
     # Color
     if(is.null(color)){
@@ -121,11 +120,66 @@ PlotScatter <- function(x, y = "VMAX", color = NULL, fit_line = FALSE, facet = N
     finalPlot
 }
 
+# Map plot
+world_coordinates <- map_data("world") 
+mapPlot <- ggplot() + 
+    # geom_map() function takes world coordinates  
+    # as input to plot world map 
+    geom_map( 
+        data = world_coordinates, map = world_coordinates, 
+        aes(map_id = region) 
+    ) 
+
+PlotMap <- function(color = NULL){
+    # Color
+    if(is.null(color)){
+        map_plot1 <- mapPlot +
+            geom_point(
+                data = StormdataTrain3,
+                aes(x = LON-360, y = LAT)) +
+            xlim(c(-180,0)) +
+            ylim(c(0,60)) 
+    }else{
+        if(is.numeric(StormdataTrain3 |> pull(color))){
+            map_plot1 <- mapPlot +
+                geom_point(
+                    data = StormdataTrain3,
+                    aes(x = LON-360, y = LAT, color = !!sym(color))) +
+                xlim(c(-180,0)) +
+                ylim(c(0,60)) +
+                scale_color_continuous(low = "green", high = "red")
+        }else{
+            map_plot1 <- mapPlot +
+                geom_point(
+                    data = StormdataTrain3,
+                    aes(x = LON-360, y = LAT, color = !!sym(color))) +
+                xlim(c(-180,0)) +
+                ylim(c(0,60))
+        }
+    }
+    
+    # # Facet 
+    # if(is.null(facet)){
+    #     map_plot2 <- map_plot1
+    # }else{
+    #     map_plot2 <- map_plot1 +
+    #         facet_wrap(vars(!!sym(facet)))
+    # }
+    
+    map_plot_final <- map_plot1 +
+        labs(
+            x = "Longitude",
+            y = "Latitude"
+        )
+        theme_bw()
+    
+    return(map_plot_final)
+}
 
 # Define server logic required to draw a histogram
-shinyServer(function(input, output, session) {
+shinyServer(function(input, output, session){
     
-    # Data Tab ====
+    # Data Tab ----
     output$dataTableOut <- renderReactable({
         updateData <- StormdataTrain3 |>
             mutate(
@@ -168,8 +222,9 @@ shinyServer(function(input, output, session) {
         )
     })
     
-    # Plot Tab ====
+    # Plot Tab ----
     ## Data Input ----
+    
     output$plotDataInputs <- renderUI({
         ### Scatter Plot ----
         if(input$plot_type == "scatter_plot"){
@@ -237,27 +292,74 @@ shinyServer(function(input, output, session) {
                     status = "info"
                 )
             )
+        }else if(input$plot_type == "map_plot"){
+            ## Map Plot ----
+            tagList(
+                materialSwitch(
+                    inputId = "map_color_switch",
+                    label = "Color plot by variable?", 
+                    value = FALSE, 
+                    status = "info"
+                ),
+                conditionalPanel(condition = 'input.map_color_switch',
+                                 pickerInput(
+                                     inputId = "map_color",
+                                     label = "Select color variable",
+                                     choices = colnames(StormdataTrain3 |> select(-LAT, -LON)),
+                                     selected = "VMAX", 
+                                     multiple = FALSE,
+                                     options = pickerOptions(
+                                         #maxOptions = 1, 
+                                         virtualScroll = 600,
+                                         dropupAuto = FALSE
+                                     )
+                                 )
+                )
+                # hr(),
+                # materialSwitch(
+                #     inputId = "map_facet_switch",
+                #     label = "Facet plot by variable?", 
+                #     value = FALSE, 
+                #     status = "info"
+                # ),
+                # conditionalPanel(condition = 'input.map_facet_switch',
+                #                  pickerInput(
+                #                      inputId = "map_facet",
+                #                      label = "Select facet variable",
+                #                      choices = colnames(StormdataTrain3 |> select(-LAT, -LON)),
+                #                      selected = NULL, 
+                #                      multiple = TRUE,
+                #                      options = pickerOptions(
+                #                          maxOptions = 1,
+                #                          virtualScroll = 600,
+                #                          dropupAuto = FALSE
+                #                      )
+                #                  )
+                # )
+            )
         }
     })
     
-    
-    ## Plot Output -----
-    ### Box Side bar ----
-    
-    ### Plot ----
+    ## Plot Output ----
     output$OutPlot <- renderPlot({
-        req(input$scatter_y)
+        #req(input$scatter_y)
         if(input$plot_type == "scatter_plot"){
             scatterPlot <- PlotScatter(
-                x = input$scatter_x, 
-                y = input$scatter_y, 
+                x = input$scatter_x,
+                y = input$scatter_y,
                 color = if(input$scatter_color_switch){input$scatter_color},
-                fit_line = input$scatter_fit_line, 
+                fit_line = input$scatter_fit_line,
                 facet = if(input$scatter_facet_switch){input$scatter_facet}
             )
+            plotOut <- scatterPlot
+        }else if(input$plot_type == "map_plot"){
+            mapPlot <- PlotMap(
+                color = if(input$map_color_switch){input$map_color}#,
+                #facet = if(input$map_facet_switch){input$map_facet}
+            )
+            plotOut <- mapPlot
         }
         
-        plotOut <- scatterPlot
         return(plotOut)
     })
     
