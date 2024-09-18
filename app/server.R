@@ -66,17 +66,26 @@ fact_columns <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is
 num_columns <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is.numeric(x)})]
 
 # Scatter Plot
-PlotScatter <- function(x, y = "VMAX", color = NULL, fit_line = FALSE, facet = NULL){
+PlotScatter <- function(x, y = "VMAX", transX = "None", transY = "None", color = NULL, fit_line = FALSE, facet = NULL){
+    plotData <- StormdataTrain3 |>
+        rowwise() |>
+        mutate(
+            !!sym(x) := ifelse(transX == "None", !!sym(x),
+                               ifelse(transX == "Log", log(!!sym(x)), scale(!!sym(x)))),
+            !!sym(y) := ifelse(transY == "None", !!sym(y),
+                               ifelse(transX == "Log", log(!!sym(y)), scale(!!sym(y))))
+        ) 
+    
     # Color
     if(is.null(color)){
-        g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y)))
+        g_base <- ggplot(data = plotData, aes(x = !!sym(x), y = !!sym(y)))
     }else{
-        if(is.numeric(StormdataTrain3 |> pull(color))){
-            g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color), group = !!sym(color))) +
+        if(is.numeric(plotData |> pull(color))){
+            g_base <- ggplot(data = plotData, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color), group = !!sym(color))) +
                 scale_color_continuous(low = "red", high = "green")
             
         }else{
-            g_base <- ggplot(data = StormdataTrain3, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color), group = !!sym(color))) 
+            g_base <- ggplot(data = plotData, aes(x = !!sym(x), y = !!sym(y), color = !!sym(color), group = !!sym(color))) 
         }
     }
     
@@ -89,8 +98,8 @@ PlotScatter <- function(x, y = "VMAX", color = NULL, fit_line = FALSE, facet = N
             sm_statCorr(
                 corr_method = "spearman", 
                 label_x = ifelse(x == "Date", 
-                                 max(StormdataTrain3 |> pull(x)) - months(3),
-                                 0.9*max(StormdataTrain3 |> pull(x))),
+                                 max(plotData |> pull(x)) - months(3),
+                                 0.9*max(plotData |> pull(x))),
                 legends = TRUE
             )
     }else{
@@ -175,7 +184,7 @@ PlotMap <- function(color = NULL){
             x = "Longitude",
             y = "Latitude"
         )
-        theme_bw()
+    theme_bw()
     
     return(map_plot_final)
 }
@@ -239,12 +248,38 @@ shinyServer(function(input, output, session){
                     choices = c("Date", num_columns),
                     selected = NULL
                 ),
+                radioGroupButtons(
+                    inputId = "transform_x",
+                    label = "Transform X",
+                    choices = c("None",
+                                "Log", 
+                                "Scale"),
+                    individual = TRUE,
+                    checkIcon = list(
+                        yes = tags$i(class = "fa fa-check-square", 
+                                     style = "color: steelblue"),
+                        no = tags$i(class = "fa fa-circle-o", 
+                                    style = "color: steelblue"))
+                ),
                 hr(),
                 pickerInput(
                     inputId = "scatter_y",
                     label = "Select y variable",
                     choices = c(num_columns),
                     selected = "VMAX"
+                ),
+                radioGroupButtons(
+                    inputId = "transform_y",
+                    label = "Transform Y",
+                    choices = c("None",
+                                "Log", 
+                                "Scale"),
+                    individual = TRUE,
+                    checkIcon = list(
+                        yes = tags$i(class = "fa fa-check-square", 
+                                     style = "color: steelblue"),
+                        no = tags$i(class = "fa fa-circle-o", 
+                                    style = "color: steelblue"))
                 ),
                 hr(),
                 materialSwitch(
@@ -351,6 +386,8 @@ shinyServer(function(input, output, session){
             scatterPlot <- PlotScatter(
                 x = input$scatter_x,
                 y = input$scatter_y,
+                transX = input$transform_x,
+                transY = input$transform_y,
                 color = if(input$scatter_color_switch){input$scatter_color},
                 fit_line = input$scatter_fit_line,
                 facet = if(input$scatter_facet_switch){input$scatter_facet}
