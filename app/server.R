@@ -30,11 +30,13 @@ StormdataTrain2 <- StormdataTrain |>
 dataYears <- year(StormdataTrain2$Date)
 dataMonths <- month(StormdataTrain2$Date, label = TRUE)
 dataDays <- day(StormdataTrain2$Date)
+dataYearDays <- yday(StormdataTrain2$Date)
 
 StormdataTrain3 <- StormdataTrain2 |>
     mutate(
         Year = factor(dataYears, ordered = TRUE),
-        Month = dataMonths
+        Month = dataMonths,
+        Day = dataYearDays
     ) |>
     group_by(StormID) |>
     mutate(
@@ -45,6 +47,7 @@ StormdataTrain3 <- StormdataTrain2 |>
         Date,
         Year,
         Month,
+        Day,
         StormElapsedTime,
         everything()
     ) |>
