@@ -51,18 +51,18 @@ StormdataTrain2 <- StormdataTrain |>
   select(-lead_time)
 
 # Create Date vars 
-dataYears <- year(StormdataTrain2$Date)
-dataMonths <- month(StormdataTrain2$Date, label = TRUE)
-dataDays <- day(StormdataTrain2$Date)
-dataYearDay <- yday(StormdataTrain2$Date)
+dataTrainYears <- year(StormdataTrain2$Date)
+dataTrainMonths <- month(StormdataTrain2$Date, label = TRUE)
+dataTrainDays <- day(StormdataTrain2$Date)
+dataTrainYearDay <- yday(StormdataTrain2$Date)
 plot(hist(dataYearDay))
 
 #### Train 3 ----
 StormdataTrain3 <- StormdataTrain2 |>
   mutate(
-    Year = factor(dataYears, ordered = TRUE),
-    Month = dataMonths,
-    Day = dataYearDay
+    Year = factor(dataTrainYears, ordered = TRUE),
+    Month = dataTrainMonths,
+    Day = dataTrainYearDay
   ) |>
   group_by(StormID) |>
   mutate(
@@ -230,9 +230,9 @@ StormdataTrain7 <- StormdataTrain3 |>
     Month = factor(Month, ordered = FALSE)
   ) |>
   mutate(
-    across(where(is.numeric) & !c(VMAX, Day), 
-                                  #StormElapsedTime,StormElapsedTime2, 
-                                  #LAT, LON),
+    across(where(is.numeric) & !c(VMAX, Day,
+                                  StormElapsedTime,StormElapsedTime2, 
+                                  LAT, LON),
            function(x){scale(x)})
   )
 plot(x = StormdataTrain7$Day, y = StormdataTrain7$VMAX)
@@ -278,11 +278,55 @@ StormdataTrain7B <- StormdataTrain3 |>
     Month = factor(Month, ordered = FALSE)
   ) |>
   mutate(
-    across(where(is.numeric) & !c(VMAX, Day, StormElapsedTime,StormElapsedTime2, LAT, LON),
+    across(where(is.numeric) & !c(VMAX, Day,
+                                  StormElapsedTime,StormElapsedTime2, 
+                                  LAT, LON),
            function(x){scale(x)})
   )
-plot(x = StormdataTrain7$Day, y = StormdataTrain7$VMAX)
-str(StormdataTrain7)
+str(StormdataTrain7B)
+
+#### Train 7scale ----
+StormdataTrain7scale <- StormdataTrain3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    StormElapsedTime2,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime2),
+           function(x){scale(x)})
+  )
+plot(x = StormdataTrain7scale$Day, y = StormdataTrain7scale$VMAX)
+str(StormdataTrain7scale)
 
 #### Train 8 ----
 StormdataTrain8 <- StormdataTrain3 |>
@@ -335,15 +379,17 @@ StormdataTest2 <- StormdataTest |>
   select(-lead_time)
 
 # Create Date vars 
-dataYears <- year(StormdataTest2$Date)
-dataMonths <- month(StormdataTest2$Date, label = TRUE)
-dataDays <- day(StormdataTest2$Date)
+dataTestYears <- year(StormdataTest2$Date)
+dataTestMonths <- month(StormdataTest2$Date, label = TRUE)
+dataTestDays <- day(StormdataTest2$Date)
+dataTestYearDay <- yday(StormdataTest2$Date)
 
 #### Test 3 ----
 StormdataTest3 <- StormdataTest2 |>
   mutate(
-    Year = factor(dataYears, ordered = TRUE),
-    Month = dataMonths
+    Year = factor(dataTestYears, ordered = TRUE),
+    Month = dataTestMonths,
+    Day = dataTestYearDay
   ) |>
   group_by(StormID) |>
   mutate(
@@ -355,6 +401,7 @@ StormdataTest3 <- StormdataTest2 |>
     Date,
     Year,
     Month,
+    Day,
     StormElapsedTime,
     StormElapsedTime2,
     everything()
@@ -368,6 +415,7 @@ StormdataTestFinal <- StormdataTest3 |>
     #Date,
     Year,
     Month,
+    Day,
     StormElapsedTime,
     StormElapsedTime2,
     "basin",
@@ -397,11 +445,60 @@ StormdataTestFinal <- StormdataTest3 |>
     Month = factor(Month, ordered = FALSE)
   ) |>
   mutate(
-    across(where(is.numeric) & !c(VMAX), 
-                                  #StormElapsedTime, StormElapsedTime2, LAT, LON),
-           function(x){scale(x)})
+    across(where(is.numeric) & !c(VMAX, Day,
+                                  StormElapsedTime,StormElapsedTime2, 
+                                  LAT, LON),
+           function(x){scale(x,
+                             center = attr(StormdataTrain7 |> pull(x), "scaled:center"),
+                             scale = attr(StormdataTrain7 |> pull(x), "scaled:scale"))
+             })
   )
 str(StormdataTestFinal)
+
+#### Test Final Scale----
+StormdataTestFinalscale <- StormdataTest3 |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    StormElapsedTime2,
+    "basin",
+    "LAT",
+    "LON",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime2),
+           function(x){scale(x,
+                             center = attr(StormdataTrain7scale |> pull(x), "scaled:center"),
+                             scale = attr(StormdataTrain7scale |> pull(x), "scaled:scale"))
+           })
+  )
+str(StormdataTestFinalscale)
 
 ### Actual ----
 Actual_Y <- fread("_data/Actual Y.csv")
@@ -502,14 +599,17 @@ ggplot() +
   theme_bw()
 
 # Fit model ----
+load(file = "_data/gammaFit0.RData")
 load(file = "_data/gammaFit1.RData")
 load(file = "_data/gammaFit2.RData")
 load(file = "_data/gammaFit3.RData")
+load(file = "_data/gammaFit4.RData")
 load(file = "_data/studentFit1.RData")
 load(file = "_data/studentFit2.RData")
 load(file = "_data/studentFit3.RData")
 load(file = "_data/linFit10.RData")
 load(file = "_data/linFit11.RData")
+load(file = "_data/linFit12.RData")
 
 ## GAUSSIAN ----
 ### Model 1 ----
@@ -1082,6 +1182,39 @@ bayes_factor(linFit10, linFit9)
 conditional_smooths(linFit10)
 conditional_effects(linFit10)
 
+#### Prediction ----
+## Fitted
+linFit10finalFit <- posterior_predict(linFit10)
+linFit10finalFitMean <- colMeans(linFit10finalFit)
+linFit10finalFitMed <- apply(linFit10finalFit, 2, function(x){quantile(x, 0.5)})
+linFit10finalFitLCB <- apply(linFit10finalFit, 2, function(x){quantile(x, 0.025)})
+linFit10finalFitUCB <- apply(linFit10finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+linFit10finalPreds <- posterior_predict(linFit10, 
+                                         newdata = StormdataTestFinal,
+                                         allow_new_levels = TRUE)
+linFit10finalPreds2 <- colMeans(linFit10finalPreds)
+linFit10finalPredsMed <- apply(linFit10finalPreds, 2, function(x){quantile(x, 0.5)})
+linFit10finalPredsLCB <- apply(linFit10finalPreds, 2, function(x){quantile(x, 0.025)})
+linFit10finalPredsUCB <- apply(linFit10finalPreds, 2, function(x){quantile(x, 0.975)})
+
+linFit10predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(linFit10finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(linFit10finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < linFit10finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(linFit10finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(linFit10finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(linFit10finalPredsLCB < Actual_Yvec & Actual_Yvec < linFit10finalPredsUCB)
+)
+linFit10predMetrics
+
+ppc_dens_overlay(y = Actual_Yvec, yrep = linFit10finalPreds) +
+  labs(title = "GammaFit5 Predict")
+rm(linFit10finalFit)
+rm(linFit10finalPreds)
+
 ### Model 11 ----
 linFit11 <- brm(
   formula = VMAX ~ 
@@ -1151,9 +1284,38 @@ bayes_factor(linFit11, logPropFit1)
 conditional_smooths(linFit11)
 conditional_effects(linFit11)
 
-linFit11EPreds1 <- posterior_epred(linFit11)
-linFit11EPreds2 <- colMeans(linFit11EPreds1)
-mean(abs(linFit11EPreds2 - StormdataTrain3$VMAX))
+#### Prediction ----
+## Fitted
+linFit11finalFit <- posterior_predict(linFit11)
+linFit11finalFitMean <- colMeans(linFit11finalFit)
+linFit11finalFitMed <- apply(linFit11finalFit, 2, function(x){quantile(x, 0.5)})
+linFit11finalFitLCB <- apply(linFit11finalFit, 2, function(x){quantile(x, 0.025)})
+linFit11finalFitUCB <- apply(linFit11finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+linFit11finalPreds <- posterior_predict(linFit11, 
+                                        newdata = StormdataTestFinal,
+                                        allow_new_levels = TRUE)
+linFit11finalPreds2 <- colMeans(linFit11finalPreds)
+linFit11finalPredsMed <- apply(linFit11finalPreds, 2, function(x){quantile(x, 0.5)})
+linFit11finalPredsLCB <- apply(linFit11finalPreds, 2, function(x){quantile(x, 0.025)})
+linFit11finalPredsUCB <- apply(linFit11finalPreds, 2, function(x){quantile(x, 0.975)})
+
+linFit11predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(linFit11finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(linFit11finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < linFit11finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(linFit11finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(linFit11finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(linFit11finalPredsLCB < Actual_Yvec & Actual_Yvec < linFit11finalPredsUCB)
+)
+linFit11predMetrics
+
+ppc_dens_overlay(y = Actual_Yvec, yrep = linFit11finalPreds) +
+  labs(title = "GammaFit5 Predict")
+rm(linFit11finalFit)
+rm(linFit11finalPreds)
 
 ### Model 12 ----
 linFit12 <- brm(
@@ -1229,29 +1391,37 @@ linFit12effects <- conditional_effects(linFit12,
 plot(linFit12effects, points = TRUE)
 
 #### Prediction ----
-linFit12finalPreds <- posterior_predict(linFit12, 
-                                         newdata = StormdataTestFinal,
-                                         allow_new_levels = TRUE)
-linFit12finalPreds <- posterior_epred(linFit12, 
-                                       newdata = StormdataTestFinal,
-                                       allow_new_levels = TRUE)
-linFit12finalPreds2 <- colMeans(linFit12finalPreds)
+## Fitted
+linFit12finalFit <- posterior_predict(linFit12)
+linFit12finalFitMean <- colMeans(linFit12finalFit)
+linFit12finalFitMed <- apply(linFit12finalFit, 2, function(x){quantile(x, 0.5)})
+linFit12finalFitLCB <- apply(linFit12finalFit, 2, function(x){quantile(x, 0.025)})
+linFit12finalFitUCB <- apply(linFit12finalFit, 2, function(x){quantile(x, 0.975)})
 
-mean(abs(linFit12finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
+## Prediction on new data
+linFit12finalPreds <- posterior_predict(linFit12, 
+                                        newdata = StormdataTestFinal,
+                                        allow_new_levels = TRUE)
+linFit12finalPreds2 <- colMeans(linFit12finalPreds)
 linFit12finalPredsMed <- apply(linFit12finalPreds, 2, function(x){quantile(x, 0.5)})
 linFit12finalPredsLCB <- apply(linFit12finalPreds, 2, function(x){quantile(x, 0.025)})
 linFit12finalPredsUCB <- apply(linFit12finalPreds, 2, function(x){quantile(x, 0.975)})
 
 linFit12predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(linFit12finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(linFit12finalPredsMed - Actual_Yvec)),
-  COV = mean(linFit12finalPredsLCB < Actual_Yvec & Actual_Yvec < linFit12finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(linFit12finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(linFit12finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < linFit12finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(linFit12finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(linFit12finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(linFit12finalPredsLCB < Actual_Yvec & Actual_Yvec < linFit12finalPredsUCB)
 )
 linFit12predMetrics
 
-ppc_dens_overlay(y = Actual_Yvec, yrep = linFit12finalPreds)
+ppc_dens_overlay(y = Actual_Yvec, yrep = linFit12finalPreds) +
+  labs(title = "GammaFit5 Predict")
+rm(linFit12finalFit)
+rm(linFit12finalPreds)
 
 
 ## STUDENT T ----
@@ -1319,29 +1489,37 @@ conditional_smooths(studentFit1)
 conditional_effects(studentFit1)
 
 #### Prediction ----
-studentFit1finalPreds <- posterior_predict(studentFit1, 
-                                newdata = StormdataTestFinal,
-                                allow_new_levels = TRUE)
-studentFit1finalPreds <- posterior_epred(studentFit1, 
-                              newdata = StormdataTestFinal,
-                              allow_new_levels = TRUE)
-studentFit1finalPreds2 <- colMeans(studentFit1finalPreds)
+## Fitted
+studentFit1finalFit <- posterior_predict(studentFit1)
+studentFit1finalFitMean <- colMeans(studentFit1finalFit)
+studentFit1finalFitMed <- apply(studentFit1finalFit, 2, function(x){quantile(x, 0.5)})
+studentFit1finalFitLCB <- apply(studentFit1finalFit, 2, function(x){quantile(x, 0.025)})
+studentFit1finalFitUCB <- apply(studentFit1finalFit, 2, function(x){quantile(x, 0.975)})
 
-mean(abs(studentFit1finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
+## Prediction on new data
+studentFit1finalPreds <- posterior_predict(studentFit1, 
+                                        newdata = StormdataTestFinal,
+                                        allow_new_levels = TRUE)
+studentFit1finalPreds2 <- colMeans(studentFit1finalPreds)
 studentFit1finalPredsMed <- apply(studentFit1finalPreds, 2, function(x){quantile(x, 0.5)})
 studentFit1finalPredsLCB <- apply(studentFit1finalPreds, 2, function(x){quantile(x, 0.025)})
 studentFit1finalPredsUCB <- apply(studentFit1finalPreds, 2, function(x){quantile(x, 0.975)})
 
 studentFit1predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(studentFit1finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(studentFit1finalPredsMed - Actual_Yvec)),
-  COV = mean(studentFit1finalPredsLCB < Actual_Yvec & Actual_Yvec < studentFit1finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(studentFit1finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(studentFit1finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < studentFit1finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(studentFit1finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(studentFit1finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(studentFit1finalPredsLCB < Actual_Yvec & Actual_Yvec < studentFit1finalPredsUCB)
 )
 studentFit1predMetrics
 
-ppc_dens_overlay(y = Actual_Yvec, yrep = studentFit1finalPreds)
+ppc_dens_overlay(y = Actual_Yvec, yrep = studentFit1finalPreds) +
+  labs(title = "studentFit1 Predict")
+rm(studentFit1finalFit)
+rm(studentFit1finalPreds)
 
 ### Model 2 ----
 studentFit2 <- brm(
@@ -1411,29 +1589,37 @@ bayes_factor(studentFit2, propFit1)
 bayes_factor(studentFit2, logPropFit1)
 
 #### Prediction ----
+## Fitted
+studentFit2finalFit <- posterior_predict(studentFit2)
+studentFit2finalFitMean <- colMeans(studentFit2finalFit)
+studentFit2finalFitMed <- apply(studentFit2finalFit, 2, function(x){quantile(x, 0.5)})
+studentFit2finalFitLCB <- apply(studentFit2finalFit, 2, function(x){quantile(x, 0.025)})
+studentFit2finalFitUCB <- apply(studentFit2finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
 studentFit2finalPreds <- posterior_predict(studentFit2, 
                                            newdata = StormdataTestFinal,
                                            allow_new_levels = TRUE)
-studentFit2finalPreds <- posterior_epred(studentFit2, 
-                                         newdata = StormdataTestFinal,
-                                         allow_new_levels = TRUE)
 studentFit2finalPreds2 <- colMeans(studentFit2finalPreds)
-
-mean(abs(studentFit2finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
 studentFit2finalPredsMed <- apply(studentFit2finalPreds, 2, function(x){quantile(x, 0.5)})
 studentFit2finalPredsLCB <- apply(studentFit2finalPreds, 2, function(x){quantile(x, 0.025)})
 studentFit2finalPredsUCB <- apply(studentFit2finalPreds, 2, function(x){quantile(x, 0.975)})
 
 studentFit2predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(studentFit2finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(studentFit2finalPredsMed - Actual_Yvec)),
-  COV = mean(studentFit2finalPredsLCB < Actual_Yvec & Actual_Yvec < studentFit2finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(studentFit2finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(studentFit2finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < studentFit2finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(studentFit2finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(studentFit2finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(studentFit2finalPredsLCB < Actual_Yvec & Actual_Yvec < studentFit2finalPredsUCB)
 )
 studentFit2predMetrics
 
-ppc_dens_overlay(y = Actual_Yvec, yrep = studentFit1finalPreds)
+ppc_dens_overlay(y = Actual_Yvec, yrep = studentFit2finalPreds) +
+  labs(title = "GammaFit5 Predict")
+rm(studentFit2finalFit)
+rm(studentFit2finalPreds)
 
 ### Model 3 ----
 studentFit3 <- brm(
@@ -1503,34 +1689,39 @@ conditional_smooths(studentFit3)
 conditional_effects(studentFit3)
 
 #### Prediction ----
+## Fitted
+studentFit3finalFit <- posterior_predict(studentFit3)
+studentFit3finalFitMean <- colMeans(studentFit3finalFit)
+studentFit3finalFitMed <- apply(studentFit3finalFit, 2, function(x){quantile(x, 0.5)})
+studentFit3finalFitLCB <- apply(studentFit3finalFit, 2, function(x){quantile(x, 0.025)})
+studentFit3finalFitUCB <- apply(studentFit3finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
 studentFit3finalPreds <- posterior_predict(studentFit3, 
                                            newdata = StormdataTestFinal,
                                            allow_new_levels = TRUE)
-studentFit3finalPreds <- posterior_epred(studentFit3, 
-                                         newdata = StormdataTestFinal,
-                                         allow_new_levels = TRUE)
 studentFit3finalPreds2 <- colMeans(studentFit3finalPreds)
-
-mean(abs(studentFit3finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
 studentFit3finalPredsMed <- apply(studentFit3finalPreds, 2, function(x){quantile(x, 0.5)})
 studentFit3finalPredsLCB <- apply(studentFit3finalPreds, 2, function(x){quantile(x, 0.025)})
 studentFit3finalPredsUCB <- apply(studentFit3finalPreds, 2, function(x){quantile(x, 0.975)})
 
 studentFit3predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(studentFit3finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(studentFit3finalPredsMed - Actual_Yvec)),
-  COV = mean(studentFit3finalPredsLCB < Actual_Yvec & Actual_Yvec < studentFit3finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(studentFit3finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(studentFit3finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < studentFit3finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(studentFit3finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(studentFit3finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(studentFit3finalPredsLCB < Actual_Yvec & Actual_Yvec < studentFit3finalPredsUCB)
 )
 studentFit3predMetrics
 
 ppc_dens_overlay(y = Actual_Yvec, yrep = studentFit3finalPreds) +
-  labs(title = "StudentFit3 Predict")
+  labs(title = "GammaFit5 Predict")
+rm(studentFit3finalFit)
 rm(studentFit3finalPreds)
 
 ## GAMMA ----
-### Model Non Spline ----
 ### Model 0 ----
 gammaFit0 <- brm(
   formula = VMAX ~ 
@@ -1573,7 +1764,7 @@ gammaFit0
 
 print(gammaFit0, digits = 4)
 plot(gammaFit0)
-pp_check(gammaFit0, ndraws = 40)
+pp_check(gammaFit0, ndraws = 100)
 loo(gammaFit0)
 waic(gammaFit0)
 performance::check_distribution(gammaFit0)
@@ -1618,29 +1809,37 @@ gammaFit0effects
 conditional_effects(gammaFit0, surface = TRUE, robust = FALSE)
 
 #### Prediction ----
+## Fitted
+gammaFit0finalFit <- posterior_predict(gammaFit0)
+gammaFit0finalFitMean <- colMeans(gammaFit0finalFit)
+gammaFit0finalFitMed <- apply(gammaFit0finalFit, 2, function(x){quantile(x, 0.5)})
+gammaFit0finalFitLCB <- apply(gammaFit0finalFit, 2, function(x){quantile(x, 0.025)})
+gammaFit0finalFitUCB <- apply(gammaFit0finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
 gammaFit0finalPreds <- posterior_predict(gammaFit0, 
                                          newdata = StormdataTestFinal,
                                          allow_new_levels = TRUE)
-gammaFit0finalPreds <- posterior_epred(gammaFit0, 
-                                       newdata = StormdataTestFinal,
-                                       allow_new_levels = TRUE)
 gammaFit0finalPreds2 <- colMeans(gammaFit0finalPreds)
-
-mean(abs(gammaFit0finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
 gammaFit0finalPredsMed <- apply(gammaFit0finalPreds, 2, function(x){quantile(x, 0.5)})
 gammaFit0finalPredsLCB <- apply(gammaFit0finalPreds, 2, function(x){quantile(x, 0.025)})
 gammaFit0finalPredsUCB <- apply(gammaFit0finalPreds, 2, function(x){quantile(x, 0.975)})
 
 gammaFit0predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(gammaFit0finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(gammaFit0finalPredsMed - Actual_Yvec)),
-  COV = mean(gammaFit0finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit0finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(gammaFit0finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(gammaFit0finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < gammaFit0finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(gammaFit0finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(gammaFit0finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(gammaFit0finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit0finalPredsUCB)
 )
 gammaFit0predMetrics
 
-ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit0finalPreds)
+ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit0finalPreds) +
+  labs(title = "GammaFit0 Predict")
+rm(gammaFit0finalFit)
+rm(gammaFit0finalPreds)
 
 ### Model 1 ----
 gammaFit1 <- brm(
@@ -1832,31 +2031,37 @@ logLikGamma <- log_lik(gammaFit1)
 varSelGamma <- varsel(gammaFit1)
 
 #### Prediction ----
+## Fitted
+gammaFit1finalFit <- posterior_predict(gammaFit1)
+gammaFit1finalFitMean <- colMeans(gammaFit1finalFit)
+gammaFit1finalFitMed <- apply(gammaFit1finalFit, 2, function(x){quantile(x, 0.5)})
+gammaFit1finalFitLCB <- apply(gammaFit1finalFit, 2, function(x){quantile(x, 0.025)})
+gammaFit1finalFitUCB <- apply(gammaFit1finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
 gammaFit1finalPreds <- posterior_predict(gammaFit1, 
-                                           newdata = StormdataTestFinal,
-                                           allow_new_levels = TRUE)
-gammaFit1finalPreds <- posterior_epred(gammaFit1, 
                                          newdata = StormdataTestFinal,
                                          allow_new_levels = TRUE)
 gammaFit1finalPreds2 <- colMeans(gammaFit1finalPreds)
-
-mean(abs(gammaFit1finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
 gammaFit1finalPredsMed <- apply(gammaFit1finalPreds, 2, function(x){quantile(x, 0.5)})
 gammaFit1finalPredsLCB <- apply(gammaFit1finalPreds, 2, function(x){quantile(x, 0.025)})
 gammaFit1finalPredsUCB <- apply(gammaFit1finalPreds, 2, function(x){quantile(x, 0.975)})
 
 gammaFit1predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(gammaFit1finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(gammaFit1finalPredsMed - Actual_Yvec)),
-  COV = mean(gammaFit1finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit1finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(gammaFit1finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(gammaFit1finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < gammaFit1finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(gammaFit1finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(gammaFit1finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(gammaFit1finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit1finalPredsUCB)
 )
 gammaFit1predMetrics
 
-ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit1finalPreds)
-
-cv_varsel(gammaFit1)
+ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit1finalPreds) +
+  labs(title = "GammaFit1 Predict")
+rm(gammaFit1finalFit)
+rm(gammaFit1finalPreds)
 
 
 
@@ -1930,29 +2135,36 @@ conditional_smooths(gammaFit2)
 conditional_effects(gammaFit2)
 
 #### Prediction ----
+## Fitted
+gammaFit2finalFit <- posterior_predict(gammaFit2)
+gammaFit2finalFitMean <- colMeans(gammaFit2finalFit)
+gammaFit2finalFitMed <- apply(gammaFit2finalFit, 2, function(x){quantile(x, 0.5)})
+gammaFit2finalFitLCB <- apply(gammaFit2finalFit, 2, function(x){quantile(x, 0.025)})
+gammaFit2finalFitUCB <- apply(gammaFit2finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
 gammaFit2finalPreds <- posterior_predict(gammaFit2, 
-                                           newdata = StormdataTestFinal,
-                                           allow_new_levels = TRUE)
-gammaFit2finalPreds <- posterior_epred(gammaFit2, 
                                          newdata = StormdataTestFinal,
                                          allow_new_levels = TRUE)
 gammaFit2finalPreds2 <- colMeans(gammaFit2finalPreds)
-
-mean(abs(gammaFit2finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
 gammaFit2finalPredsMed <- apply(gammaFit2finalPreds, 2, function(x){quantile(x, 0.5)})
 gammaFit2finalPredsLCB <- apply(gammaFit2finalPreds, 2, function(x){quantile(x, 0.025)})
 gammaFit2finalPredsUCB <- apply(gammaFit2finalPreds, 2, function(x){quantile(x, 0.975)})
 
 gammaFit2predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(gammaFit2finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(gammaFit2finalPredsMed - Actual_Yvec)),
-  COV = mean(gammaFit2finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit2finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(gammaFit2finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(gammaFit2finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < gammaFit2finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(gammaFit2finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(gammaFit2finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(gammaFit2finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit2finalPredsUCB)
 )
 gammaFit2predMetrics
 
-ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit2finalPreds)
+ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit2finalPreds) +
+  labs(title = "GammaFit2 Predict")
+rm(gammaFit2finalFit)
 rm(gammaFit2finalPreds)
 
 ### Model 3 ----
@@ -2037,30 +2249,36 @@ gammaFit3effects
 conditional_effects(gammaFit3, surface = TRUE, robust = FALSE,)
 
 #### Prediction ----
+## Fitted
+gammaFit3finalFit <- posterior_predict(gammaFit3)
+gammaFit3finalFitMean <- colMeans(gammaFit3finalFit)
+gammaFit3finalFitMed <- apply(gammaFit3finalFit, 2, function(x){quantile(x, 0.5)})
+gammaFit3finalFitLCB <- apply(gammaFit3finalFit, 2, function(x){quantile(x, 0.025)})
+gammaFit3finalFitUCB <- apply(gammaFit3finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
 gammaFit3finalPreds <- posterior_predict(gammaFit3, 
                                          newdata = StormdataTestFinal,
                                          allow_new_levels = TRUE)
-gammaFit3finalPreds <- posterior_epred(gammaFit3, 
-                                       newdata = StormdataTestFinal,
-                                       allow_new_levels = TRUE)
 gammaFit3finalPreds2 <- colMeans(gammaFit3finalPreds)
-
-mean(abs(gammaFit3finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
 gammaFit3finalPredsMed <- apply(gammaFit3finalPreds, 2, function(x){quantile(x, 0.5)})
 gammaFit3finalPredsLCB <- apply(gammaFit3finalPreds, 2, function(x){quantile(x, 0.025)})
 gammaFit3finalPredsUCB <- apply(gammaFit3finalPreds, 2, function(x){quantile(x, 0.975)})
 
 gammaFit3predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(gammaFit3finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(gammaFit3finalPredsMed - Actual_Yvec)),
-  COV = mean(gammaFit3finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit3finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(gammaFit3finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(gammaFit3finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < gammaFit3finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(gammaFit3finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(gammaFit3finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(gammaFit3finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit3finalPredsUCB)
 )
 gammaFit3predMetrics
 
 ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit3finalPreds) +
   labs(title = "GammaFit3 Predict")
+rm(gammaFit3finalFit)
 rm(gammaFit3finalPreds)
 
 ### Model 4 ----
@@ -2142,33 +2360,352 @@ gammaFit4effects <- conditional_effects(gammaFit4,
 plot(gammaFit4effects, points = TRUE)
 
 #### Prediction ----
+## Fitted
+gammaFit4finalFit <- posterior_predict(gammaFit4)
+gammaFit4finalFitMean <- colMeans(gammaFit4finalFit)
+gammaFit4finalFitMed <- apply(gammaFit4finalFit, 2, function(x){quantile(x, 0.5)})
+gammaFit4finalFitLCB <- apply(gammaFit4finalFit, 2, function(x){quantile(x, 0.025)})
+gammaFit4finalFitUCB <- apply(gammaFit4finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
 gammaFit4finalPreds <- posterior_predict(gammaFit4, 
                                          newdata = StormdataTestFinal,
                                          allow_new_levels = TRUE)
-gammaFit4finalPreds <- posterior_epred(gammaFit4, 
-                                       newdata = StormdataTestFinal,
-                                       allow_new_levels = TRUE)
 gammaFit4finalPreds2 <- colMeans(gammaFit4finalPreds)
-
-mean(abs(gammaFit4finalPreds2 - Actual_Yvec))
-mean(abs(StormdataTest3$HWRF - Actual_Yvec))
 gammaFit4finalPredsMed <- apply(gammaFit4finalPreds, 2, function(x){quantile(x, 0.5)})
 gammaFit4finalPredsLCB <- apply(gammaFit4finalPreds, 2, function(x){quantile(x, 0.025)})
 gammaFit4finalPredsUCB <- apply(gammaFit4finalPreds, 2, function(x){quantile(x, 0.975)})
 
 gammaFit4predMetrics <- tibble(
-  MAE_HWRF = mean(abs(StormdataTest3$HWRF - Actual_Yvec)),
-  MAE_fit = mean(abs(gammaFit4finalPreds2 - Actual_Yvec)),
-  MAD_fit = mean(abs(gammaFit4finalPredsMed - Actual_Yvec)),
-  COV = mean(gammaFit4finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit4finalPredsUCB)
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(gammaFit4finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(gammaFit4finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < gammaFit4finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(gammaFit4finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(gammaFit4finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(gammaFit4finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit4finalPredsUCB)
 )
 gammaFit4predMetrics
 
 ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit4finalPreds) +
   labs(title = "GammaFit4 Predict")
+rm(gammaFit4finalFit)
 rm(gammaFit4finalPreds)
 
 
+### Model 5 ----
+gammaFit5 <- brm(
+  formula = VMAX ~
+    #Year +
+    #Month +
+    basin + 
+    s(Day) +
+    s(StormElapsedTime) + 
+    t2(LON, LAT) +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7scale, 
+  family = brmsfamily("Gamma", link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+save(gammaFit5, file = "_data/gammaFit5.RData")
+prior_summary(gammaFit5)
+round(posterior_summary(gammaFit5, probs = c(0.025, 0.975)))
+gammaFit5
+
+print(gammaFit5, digits = 4)
+plot(gammaFit5)
+pp_check(gammaFit5, ndraws = 100)
+loo(gammaFit5)
+waic(gammaFit5)
+performance::check_distribution(gammaFit5)
+performance::check_outliers(gammaFit5)
+performance::check_heteroskedasticity(gammaFit5)
+performance_rmse(gammaFit5)
+performance_mae(gammaFit5)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(gammaFit5)
+
+
+variance_decomposition(gammaFit5)
+exp(fixef(gammaFit5))
+ranef(gammaFit5)
+
+bayes_R2(gammaFit5)
+
+bayes_factor(gammaFit5, gammaFit1)
+bayes_factor(gammaFit5, gammaFit2)
+bayes_factor(gammaFit5, gammaFit3)
+bayes_factor(gammaFit5, studentFit1)
+bayes_factor(gammaFit5, studentFit2)
+bayes_factor(gammaFit5, studentFit3)
+bayes_factor(gammaFit5, linFit11)
+bayes_factor(gammaFit5, propFit1)
+bayes_factor(gammaFit5, logPropFit1)
+loo(gammaFit5, gammaFit3)
+
+gammaFit5smooths <- conditional_smooths(gammaFit5)
+plot(gammaFit5smooths, stype = "raster", ask = FALSE)
+gammaFit5effects <- conditional_effects(gammaFit5, 
+                                        method = "posterior_predict",
+                                        robust = FALSE,
+                                        re_formula = NULL)
+gammaFit5effects <- conditional_effects(gammaFit5)
+plot(gammaFit5effects, points = TRUE, ask = FALSE)
+
+#### Prediction ----
+## Fitted
+gammaFit5finalFit <- posterior_predict(gammaFit5)
+gammaFit5finalFitMean <- colMeans(gammaFit5finalFit)
+gammaFit5finalFitMed <- apply(gammaFit5finalFit, 2, function(x){quantile(x, 0.5)})
+gammaFit5finalFitLCB <- apply(gammaFit5finalFit, 2, function(x){quantile(x, 0.025)})
+gammaFit5finalFitUCB <- apply(gammaFit5finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+gammaFit5finalPreds <- posterior_predict(gammaFit5, 
+                                         newdata = StormdataTestFinalscale,
+                                         allow_new_levels = TRUE)
+gammaFit5finalPreds2 <- colMeans(gammaFit5finalPreds)
+gammaFit5finalPredsMed <- apply(gammaFit5finalPreds, 2, function(x){quantile(x, 0.5)})
+gammaFit5finalPredsLCB <- apply(gammaFit5finalPreds, 2, function(x){quantile(x, 0.025)})
+gammaFit5finalPredsUCB <- apply(gammaFit5finalPreds, 2, function(x){quantile(x, 0.975)})
+
+gammaFit5predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(gammaFit5finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(gammaFit5finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < gammaFit5finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(gammaFit5finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(gammaFit5finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(gammaFit5finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit5finalPredsUCB)
+)
+gammaFit5predMetrics
+
+
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit5finalPreds) +
+  labs(title = "GammaFit5 Predict")
+
+gammaFit5FitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = gammaFit5finalFitLCB,
+  Mean = gammaFit5finalFitMean,
+  Med = gammaFit5finalFitMed,
+  UCB = gammaFit5finalFitUCB
+) |>
+  filter(StormID %in% c(5712015))
+
+ggplot(data = gammaFit5FitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+gammaFit5PredDF <- bind_cols(
+  StormdataTest3,
+  LCB = gammaFit5finalPredsLCB,
+  Mean = gammaFit5finalPreds2,
+  Med = gammaFit5finalPredsMed,
+  UCB = gammaFit5finalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  )
+
+ggplot(data = gammaFit5PredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+rm(gammaFit5finalFit)
+rm(gammaFit5finalPreds)
+
+### Model 6 ----
+gammaFit6 <- brm(
+  formula = VMAX ~
+    #Year +
+    #Month +
+    #basin + 
+    s(Day, bs = "cc") +
+    s(StormElapsedTime) + 
+    t2(LON, LAT) +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    (1|StormID),
+  data = StormdataTrain7scale, 
+  family = brmsfamily("Gamma", link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000,
+  knots = list(Day = c(scale(0,
+                             center = attr(StormdataTrain7scale |> pull(Day), "scaled:center"),
+                             scale = attr(StormdataTrain7scale |> pull(Day), "scaled:scale")),
+                       scale(365,
+                             center = attr(StormdataTrain7scale |> pull(Day), "scaled:center"),
+                             scale = attr(StormdataTrain7scale |> pull(Day), "scaled:scale"))
+                       ))
+)
+save(gammaFit6, file = "_data/gammaFit6.RData")
+prior_summary(gammaFit6)
+round(posterior_summary(gammaFit6, probs = c(0.025, 0.975)))
+gammaFit6
+
+print(gammaFit6, digits = 4)
+plot(gammaFit6)
+pp_check(gammaFit6, ndraws = 100)
+loo(gammaFit6)
+waic(gammaFit6)
+performance::check_distribution(gammaFit6)
+performance::check_outliers(gammaFit6)
+performance::check_heteroskedasticity(gammaFit6)
+performance_rmse(gammaFit6)
+performance_mae(gammaFit6)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(gammaFit6)
+
+
+variance_decomposition(gammaFit6)
+exp(fixef(gammaFit6))
+ranef(gammaFit6)
+
+bayes_R2(gammaFit6)
+
+bayes_factor(gammaFit6, gammaFit1)
+bayes_factor(gammaFit6, gammaFit2)
+bayes_factor(gammaFit6, gammaFit3)
+bayes_factor(gammaFit6, studentFit1)
+bayes_factor(gammaFit6, studentFit2)
+bayes_factor(gammaFit6, studentFit3)
+bayes_factor(gammaFit6, linFit11)
+bayes_factor(gammaFit6, propFit1)
+bayes_factor(gammaFit6, logPropFit1)
+loo(gammaFit6, gammaFit3)
+
+gammaFit6smooths <- conditional_smooths(gammaFit6, spaghetti = TRUE, ndraws = 100,)
+plot(gammaFit6smooths, stype = "raster")
+gammaFit6effects <- conditional_effects(gammaFit6, 
+                                        method = "posterior_predict",
+                                        robust = FALSE,
+                                        re_formula = NULL)
+#spaghetti = TRUE,
+#ndraws = 100)
+plot(gammaFit6effects, points = TRUE)
+
+#### Prediction ----
+## Fitted
+gammaFit6finalFit <- posterior_predict(gammaFit6)
+gammaFit6finalFitMean <- colMeans(gammaFit6finalFit)
+gammaFit6finalFitMed <- apply(gammaFit6finalFit, 2, function(x){quantile(x, 0.5)})
+gammaFit6finalFitLCB <- apply(gammaFit6finalFit, 2, function(x){quantile(x, 0.025)})
+gammaFit6finalFitUCB <- apply(gammaFit6finalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+gammaFit6finalPreds <- posterior_predict(gammaFit6, 
+                                         newdata = StormdataTestFinalscale,
+                                         allow_new_levels = TRUE)
+gammaFit6finalPreds2 <- colMeans(gammaFit6finalPreds)
+gammaFit6finalPredsMed <- apply(gammaFit6finalPreds, 2, function(x){quantile(x, 0.5)})
+gammaFit6finalPredsLCB <- apply(gammaFit6finalPreds, 2, function(x){quantile(x, 0.025)})
+gammaFit6finalPredsUCB <- apply(gammaFit6finalPreds, 2, function(x){quantile(x, 0.975)})
+
+gammaFit6predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(gammaFit6finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(gammaFit6finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < gammaFit6finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(gammaFit6finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(gammaFit6finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(gammaFit6finalPredsLCB < Actual_Yvec & Actual_Yvec < gammaFit6finalPredsUCB)
+)
+gammaFit6predMetrics
+
+ppc_dens_overlay(y = Actual_Yvec, yrep = gammaFit6finalPreds) +
+  labs(title = "GammaFit6 Predict")
+rm(gammaFit6finalFit)
+rm(gammaFit6finalPreds)
+
+### Compare Predictions ----
+linFit10loo <- loo(linFit10)
+linFit11loo <- loo(linFit11)
+linFit12loo <- loo(linFit12)
+studentFit1loo <- loo(studentFit1)
+studentFit2loo <- loo(studentFit2)
+studentFit3loo <- loo(studentFit3)
+gammaFit0loo <- loo(gammaFit0)
+gammaFit1loo <- loo(gammaFit1)
+gammaFit2loo <- loo(gammaFit2)
+gammaFit3loo <- loo(gammaFit3)
+gammaFit4loo <- loo(gammaFit4)
+gammaFit5loo <- loo(gammaFit5)
+gammaFit6loo <- loo(gammaFit6)
+
+loo_compare(linFit10loo,
+            linFit11loo,
+            linFit12loo,
+            studentFit1loo,
+            studentFit2loo,
+            studentFit3loo,
+            gammaFit0loo,
+            gammaFit1loo,
+            gammaFit2loo,
+            gammaFit3loo,
+            gammaFit4loo,
+            gammaFit5loo,
+            gammaFit6loo)
+
+predCompMetrics <- bind_rows(
+  linFit10predMetrics |> bind_cols(Fit = "linFit10"),
+  linFit11predMetrics |> bind_cols(Fit = "linFit11"),
+  linFit12predMetrics |> bind_cols(Fit = "linFit12"),
+  studentFit1predMetrics |> bind_cols(Fit = "studentFit1"),
+  studentFit2predMetrics |> bind_cols(Fit = "studentFit2"),
+  studentFit3predMetrics |> bind_cols(Fit = "studentFit3"),
+  gammaFit0predMetrics |> bind_cols(Fit = "gammaFit0"),
+  gammaFit1predMetrics |> bind_cols(Fit = "gammaFit1"),
+  gammaFit2predMetrics |> bind_cols(Fit = "gammaFit2"),
+  gammaFit3predMetrics |> bind_cols(Fit = "gammaFit3"),
+  gammaFit4predMetrics |> bind_cols(Fit = "gammaFit4"),
+  gammaFit5predMetrics |> bind_cols(Fit = "gammaFit5"),
+  gammaFit6predMetrics |> bind_cols(Fit = "gammaFit6")
+)
+predCompMetrics |> arrange(MAE_pred)
+
+### MGCV ----
 ### Model 5 ----
 set.seed(52)
 gammaFit5 <- gam(
