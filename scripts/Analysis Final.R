@@ -1397,7 +1397,7 @@ logpropLinFit1
 
 print(logpropLinFit1, digits = 4)
 plot(logpropLinFit1)
-pp_check(logpropLinFit1, ndraws = 100)
+pp_check(logpropLinFit1, ndraws = 100) + labs(title = "logpropLinFit1 PPC")
 loo(logpropLinFit1)
 waic(logpropLinFit1)
 performance::check_distribution(logpropLinFit1)
@@ -1832,6 +1832,7 @@ logpropStudentFit3 <- brm(
       LAT +
       Day +
       s(StormElapsedTime) + 
+      #s(StormElapsedTime, by = StormID, m = 1) +
       #t2(LON, LAT) +
       MINSLP +
       SHR_MAG +
@@ -1985,14 +1986,16 @@ propStudentFit1loo <- loo(propStudentFit1)
 propGammaFit1loo <- loo(propGammaFit1)
 logpropStudentFit1loo <- loo(logpropStudentFit1)
 logpropStudentFit2loo <- loo(logpropStudentFit2)
+logpropStudentFit3loo <- loo(logpropStudentFit3)
 
 looComp <- loo_compare(propLinFit1loo,
                        propStudentFit1loo,
                        propGammaFit1loo,
                        logpropStudentFit1loo,
-                       logpropStudentFit2loo)
+                       logpropStudentFit2loo,
+                       logpropStudentFit3loo)
 looComp
-save(looComp, file = "_data/looComp.RData")
+save(looComp, file = "_data/looCompFinal.RData")
 
 predCompMetrics <- bind_rows(
   propLinFit1predMetrics |> bind_cols(Fit = "propLinFit1"),
@@ -2000,6 +2003,7 @@ predCompMetrics <- bind_rows(
   propGammaFit1predMetrics |> bind_cols(Fit = "propGammaFit1"),
   logpropStudentFit1predMetrics |> bind_cols(Fit = "logpropStudentFit1"),
   logpropStudentFit2predMetrics |> bind_cols(Fit = "logpropStudentFit2"),
+  logpropStudentFit3predMetrics |> bind_cols(Fit = "logpropStudentFit3"),
 )
 predCompMetrics <- predCompMetrics |> arrange(MAE_pred)
 
@@ -2021,6 +2025,6 @@ rankComps <- left_join(rankComps1, rankComps2) |>
   ) |>
   arrange(OverallRank)
 
-
+save(rankComps, file = "_data/rankCompsFinal.RData")
 
 
