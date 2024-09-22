@@ -387,9 +387,8 @@ Actual_Yvec <- Actual_Y |> filter(complete.cases(x)) |> pull(x)
 
 
 # Plot VMAX ----
-ggpairs(StormdataTrain3 |> 
-          select()
-)
+ggpairs(StormdataTrain8 |>
+          select(-StormID, -Date, -Month, -Year))
 
 ## Scatter ----
 ggplot(data = StormdataTrain3, aes(x = HWFI, y = VMAX)) +
@@ -734,7 +733,7 @@ propLinFit1
 
 print(propLinFit1, digits = 4)
 plot(propLinFit1)
-pp_check(propLinFit1, ndraws = 100) 
+pp_check(propLinFit1, ndraws = 100) + labs(title = "propLinFit1")
 loo(propLinFit1)
 waic(propLinFit1)
 performance::check_distribution(propLinFit1)
@@ -1081,7 +1080,7 @@ propStudentFit1
 
 print(propStudentFit1, digits = 4)
 plot(propStudentFit1)
-pp_check(propStudentFit1, ndraws = 100)
+pp_check(propStudentFit1, ndraws = 100) + labs(title = "propStudentFit1 PPC")
 loo(propStudentFit1)
 waic(propStudentFit1)
 performance::check_distribution(propStudentFit1)
@@ -1192,7 +1191,7 @@ rm(propStudentFit1finalFit)
 rm(propStudentFit1finalFit2)
 rm(propStudentFit1finalPreds)
 
-#### Model 1 ----
+#### Model 2 ----
 propStudentFit2 <- brm(
   bf(
     VMAX/HWRF ~
@@ -1347,6 +1346,561 @@ ggplot(data = propStudentFit2PredDF, aes(x = StormElapsedTime)) +
 rm(propStudentFit2finalFit)
 rm(propStudentFit2finalFit2)
 rm(propStudentFit2finalPreds)
+
+#### Model 3 ----
+propStudentFit3 <- brm(
+  bf(
+    VMAX/HWRF ~
+      #Year +
+      #Month +
+      basin + 
+      LON +
+      LAT +
+      s(Day) +
+      s(StormElapsedTime) + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1|StormID)
+  ),
+  data = StormdataTrain8, 
+  family = student(link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+save(propStudentFit3, file = "_data/propStudentFit3.RData")
+prior_summary(propStudentFit3)
+round(posterior_summary(propStudentFit3, probs = c(0.025, 0.975)))
+propStudentFit3
+
+print(propStudentFit3, digits = 4)
+plot(propStudentFit3)
+pp_check(propStudentFit3, ndraws = 100) + labs(title = "propStudentFit3 PPC")
+pp_check(propStudentFit3, ndraws = 100,
+         fun = "ppc_bars", stat = "max")
+loo(propStudentFit3)
+waic(propStudentFit3)
+performance::check_distribution(propStudentFit3)
+performance::check_outliers(propStudentFit3)
+performance::check_heteroskedasticity(propStudentFit3)
+performance_rmse(propStudentFit3)
+performance_mae(propStudentFit3)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(propStudentFit3)
+
+variance_decomposition(propStudentFit3)
+exp(fixef(propStudentFit3))
+ranef(propStudentFit3)
+
+bayes_R2(propStudentFit3)
+loo_R2(propStudentFit3)
+
+bayes_factor(propStudentFit3, propLinFit3)
+bayes_factor(propStudentFit3, gammaFit3C)
+bayes_factor(propStudentFit3, gammaFit3C)
+bayes_factor(propStudentFit3, studentFit3C)
+bayes_factor(propStudentFit3, studentFit3C)
+bayes_factor(propStudentFit3, studentFit3C)
+bayes_factor(propStudentFit3, linFit3C1)
+bayes_factor(propStudentFit3, propFit3C)
+bayes_factor(propStudentFit3, logPropFit3C)
+loo(propStudentFit3, gammaFit3C)
+
+propStudentFit3smooths <- conditional_smooths(propStudentFit3)
+plot(propStudentFit3smooths, stype = "raster", ask = FALSE)
+propStudentFit3effects <- conditional_effects(propStudentFit3, 
+                                              method = "posterior_predict",
+                                              robust = FALSE,
+                                              re_formula = NULL)
+propStudentFit3effects <- conditional_effects(propStudentFit3)
+plot(propStudentFit3effects, points = TRUE, ask = FALSE)
+
+##### Prediction ----
+## Fitted
+propStudentFit3finalFit <- posterior_predict(propStudentFit3)
+propStudentFit3finalFit3 <- t(t(propStudentFit3finalFit)*StormdataTrain3$HWRF)
+#propStudentFit3finalFitMean <- colMeans(propStudentFit3finalFit)*StormdataTrain3$HWRF
+propStudentFit3finalFitMean <- colMeans(propStudentFit3finalFit3)
+propStudentFit3finalFitMed <- apply(propStudentFit3finalFit3, 2, function(x){quantile(x, 0.5)})
+propStudentFit3finalFitLCB <- apply(propStudentFit3finalFit3, 2, function(x){quantile(x, 0.025)})
+propStudentFit3finalFitUCB <- apply(propStudentFit3finalFit3, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+propStudentFit3finalPreds <- posterior_predict(propStudentFit3, 
+                                               newdata = StormdataTestFinalscale2,
+                                               allow_new_levels = TRUE)
+propStudentFit3finalPreds <- t(t(propStudentFit3finalPreds)*StormdataTest3$HWRF)
+propStudentFit3finalPreds2 <- colMeans(propStudentFit3finalPreds)
+propStudentFit3finalPredsMed <- apply(propStudentFit3finalPreds, 2, function(x){quantile(x, 0.5)})
+propStudentFit3finalPredsLCB <- apply(propStudentFit3finalPreds, 2, function(x){quantile(x, 0.025)})
+propStudentFit3finalPredsUCB <- apply(propStudentFit3finalPreds, 2, function(x){quantile(x, 0.975)})
+
+propStudentFit3predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(propStudentFit3finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(propStudentFit3finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < propStudentFit3finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(propStudentFit3finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(propStudentFit3finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(propStudentFit3finalPredsLCB < Actual_Yvec & Actual_Yvec < propStudentFit3finalPredsUCB)
+)
+propStudentFit3predMetrics
+
+##### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = propStudentFit3finalPreds) +
+  labs(title = "GammaFit5 Predict")
+
+propStudentFit3FitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = propStudentFit3finalFitLCB,
+  Mean = propStudentFit3finalFitMean,
+  Med = propStudentFit3finalFitMed,
+  UCB = propStudentFit3finalFitUCB
+) 
+
+ggplot(data = propStudentFit3FitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+propStudentFit3PredDF <- bind_cols(
+  StormdataTest3,
+  LCB = propStudentFit3finalPredsLCB,
+  Mean = propStudentFit3finalPreds2,
+  Med = propStudentFit3finalPredsMed,
+  UCB = propStudentFit3finalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = propStudentFit3PredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX), color = "red") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50))
+
+ppc_q2.5_plot2 <- 
+  ppc_stat(Y2train, YppcSamps2Comb, stat = function(y) quantile(y, 0.025), freq = FALSE) +
+  labs(title = "2.5% Quantile") +
+  theme_bw() +
+  legend_none()
+
+ppcL2dens <- density(ppcL2)
+ppcL2dens <- cbind(ppcL2dens$x, ppcL2dens$y)
+ppcL2densB <- ppcL2dens[between(ppcL2dens[,1], quantile(ppcL2, 0.025), quantile(ppcL2, 0.975)), ] 
+ppc_q2.5_plot2B <- ggplot() +
+  # geom_histogram(aes(x = ppcL2,  after_stat(density)),
+  #                fill = "#bcdcdc", color = "#99c7c7") +
+  geom_ribbon(aes(x = ppcL2densB[,1], ymin = 0, ymax = ppcL2densB[,2]),
+              fill = "#bcdcdc") +
+  geom_density(aes(x = ppcL2), color = "#99c7c7", linewidth = .75) +
+  #geom_vline(aes(xintercept = quantile(ppcL2, 0.975)), color = "#007C7C", linewidth = 2) +
+  geom_vline(aes(xintercept = DppcL2), color = "#007C7C", linewidth = 1) +
+  geom_text(aes(label = paste0("p-value = ", round(mean(ppcL2 > DppcL2), 3))),
+            x = 0.84*max(ppcL2), y = max(ppcL2dens[,2]), size = 3) +
+  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
+  labs(title = "2.5% Quantile",
+       x = NULL,
+       y = "Posterior Density") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = rel(1)))
+ppc_q2.5_plot2B
+rm(propStudentFit3finalFit)
+rm(propStudentFit3finalFit3)
+rm(propStudentFit3finalPreds)
+
+#### Model 4 ----
+propStudentFit4 <- brm(
+  bf(
+    VMAX/HWRF ~
+      #Year +
+      #Month +
+      basin + 
+      #LON +
+      #LAT +
+      s(Day) +
+      s(StormElapsedTime) + 
+      t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1|StormID)
+  ),
+  data = StormdataTrain8, 
+  family = student(link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+save(propStudentFit4, file = "_data/propStudentFit4.RData")
+prior_summary(propStudentFit4)
+round(posterior_summary(propStudentFit4, probs = c(0.025, 0.975)))
+propStudentFit4
+
+print(propStudentFit4, digits = 4)
+plot(propStudentFit4)
+pp_check(propStudentFit4, ndraws = 100) + labs(title = "propStudentFit4 PPC")
+pp_check(propStudentFit4, ndraws = 100,
+         fun = "ppc_bars", stat = "max")
+loo(propStudentFit4)
+waic(propStudentFit4)
+performance::check_distribution(propStudentFit4)
+performance::check_outliers(propStudentFit4)
+performance::check_heteroskedasticity(propStudentFit4)
+performance_rmse(propStudentFit4)
+performance_mae(propStudentFit4)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(propStudentFit4)
+
+variance_decomposition(propStudentFit4)
+exp(fixef(propStudentFit4))
+ranef(propStudentFit4)
+
+bayes_R2(propStudentFit4)
+loo_R2(propStudentFit4)
+
+bayes_factor(propStudentFit4, propStudentFit1)
+bayes_factor(propStudentFit4, propStudentFit2)
+bayes_factor(propStudentFit4, propStudentFit3)
+bayes_factor(propStudentFit4, propStudentFit5)
+bayes_factor(propStudentFit4, studentFit4C)
+bayes_factor(propStudentFit4, studentFit4C)
+bayes_factor(propStudentFit4, linFit4C1)
+bayes_factor(propStudentFit4, propFit4C)
+bayes_factor(propStudentFit4, logPropFit4C)
+loo(propStudentFit4, gammaFit4C)
+
+propStudentFit4smooths <- conditional_smooths(propStudentFit4)
+plot(propStudentFit4smooths, stype = "raster", ask = FALSE)
+propStudentFit4effects <- conditional_effects(propStudentFit4, 
+                                              method = "posterior_predict",
+                                              robust = FALSE,
+                                              re_formula = NULL)
+propStudentFit4effects <- conditional_effects(propStudentFit4)
+plot(propStudentFit4effects, points = TRUE, ask = FALSE)
+
+##### Prediction ----
+## Fitted
+propStudentFit4finalFit <- posterior_predict(propStudentFit4)
+propStudentFit4finalFit4 <- t(t(propStudentFit4finalFit)*StormdataTrain3$HWRF)
+#propStudentFit4finalFitMean <- colMeans(propStudentFit4finalFit)*StormdataTrain3$HWRF
+propStudentFit4finalFitMean <- colMeans(propStudentFit4finalFit4)
+propStudentFit4finalFitMed <- apply(propStudentFit4finalFit4, 2, function(x){quantile(x, 0.5)})
+propStudentFit4finalFitLCB <- apply(propStudentFit4finalFit4, 2, function(x){quantile(x, 0.025)})
+propStudentFit4finalFitUCB <- apply(propStudentFit4finalFit4, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+propStudentFit4finalPreds <- posterior_predict(propStudentFit4, 
+                                               newdata = StormdataTestFinalscale2,
+                                               allow_new_levels = TRUE)
+propStudentFit4finalPreds <- t(t(propStudentFit4finalPreds)*StormdataTest3$HWRF)
+propStudentFit4finalPreds2 <- colMeans(propStudentFit4finalPreds)
+propStudentFit4finalPredsMed <- apply(propStudentFit4finalPreds, 2, function(x){quantile(x, 0.5)})
+propStudentFit4finalPredsLCB <- apply(propStudentFit4finalPreds, 2, function(x){quantile(x, 0.025)})
+propStudentFit4finalPredsUCB <- apply(propStudentFit4finalPreds, 2, function(x){quantile(x, 0.975)})
+
+propStudentFit4predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(propStudentFit4finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(propStudentFit4finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < propStudentFit4finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(propStudentFit4finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(propStudentFit4finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(propStudentFit4finalPredsLCB < Actual_Yvec & Actual_Yvec < propStudentFit4finalPredsUCB)
+)
+propStudentFit4predMetrics
+
+##### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = propStudentFit4finalPreds) +
+  labs(title = "GammaFit5 Predict")
+
+propStudentFit4FitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = propStudentFit4finalFitLCB,
+  Mean = propStudentFit4finalFitMean,
+  Med = propStudentFit4finalFitMed,
+  UCB = propStudentFit4finalFitUCB
+) 
+
+ggplot(data = propStudentFit4FitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+propStudentFit4PredDF <- bind_cols(
+  StormdataTest3,
+  LCB = propStudentFit4finalPredsLCB,
+  Mean = propStudentFit4finalPreds2,
+  Med = propStudentFit4finalPredsMed,
+  UCB = propStudentFit4finalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = propStudentFit4PredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX), color = "red") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50))
+
+ppc_q2.5_plot2 <- 
+  ppc_stat(Y2train, YppcSamps2Comb, stat = function(y) quantile(y, 0.025), freq = FALSE) +
+  labs(title = "2.5% Quantile") +
+  theme_bw() +
+  legend_none()
+
+ppcL2dens <- density(ppcL2)
+ppcL2dens <- cbind(ppcL2dens$x, ppcL2dens$y)
+ppcL2densB <- ppcL2dens[between(ppcL2dens[,1], quantile(ppcL2, 0.025), quantile(ppcL2, 0.975)), ] 
+ppc_q2.5_plot2B <- ggplot() +
+  # geom_histogram(aes(x = ppcL2,  after_stat(density)),
+  #                fill = "#bcdcdc", color = "#99c7c7") +
+  geom_ribbon(aes(x = ppcL2densB[,1], ymin = 0, ymax = ppcL2densB[,2]),
+              fill = "#bcdcdc") +
+  geom_density(aes(x = ppcL2), color = "#99c7c7", linewidth = .75) +
+  #geom_vline(aes(xintercept = quantile(ppcL2, 0.975)), color = "#007C7C", linewidth = 2) +
+  geom_vline(aes(xintercept = DppcL2), color = "#007C7C", linewidth = 1) +
+  geom_text(aes(label = paste0("p-value = ", round(mean(ppcL2 > DppcL2), 3))),
+            x = 0.84*max(ppcL2), y = max(ppcL2dens[,2]), size = 3) +
+  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
+  labs(title = "2.5% Quantile",
+       x = NULL,
+       y = "Posterior Density") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = rel(1)))
+ppc_q2.5_plot2B
+rm(propStudentFit4finalFit)
+rm(propStudentFit4finalFit4)
+rm(propStudentFit4finalPreds)
+
+#### Model 5 ----
+propStudentFit5 <- brm(
+  bf(
+    VMAX/HWRF ~
+      #Year +
+      #Month +
+      basin + 
+      LON +
+      LAT +
+      s(Day) +
+      StormElapsedTime + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1+StormElapsedTime|StormID)
+  ),
+  data = StormdataTrain8, 
+  family = student(link = "log"), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+save(propStudentFit5, file = "_data/propStudentFit5.RData")
+prior_summary(propStudentFit5)
+round(posterior_summary(propStudentFit5, probs = c(0.025, 0.975)))
+propStudentFit5
+
+print(propStudentFit5, digits = 4)
+plot(propStudentFit5)
+pp_check(propStudentFit5, ndraws = 100) + labs(title = "propStudentFit5 PPC")
+pp_check(propStudentFit5, ndraws = 100,
+         fun = "ppc_bars", stat = "max")
+loo(propStudentFit5)
+waic(propStudentFit5)
+performance::check_distribution(propStudentFit5)
+performance::check_outliers(propStudentFit5)
+performance::check_heteroskedasticity(propStudentFit5)
+performance_rmse(propStudentFit5)
+performance_mae(propStudentFit5)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(propStudentFit5)
+
+variance_decomposition(propStudentFit5)
+exp(fixef(propStudentFit5))
+ranef(propStudentFit5)
+
+bayes_R2(propStudentFit5)
+loo_R2(propStudentFit5)
+
+bayes_factor(propStudentFit5, propLinFit5)
+bayes_factor(propStudentFit5, gammaFit5C)
+bayes_factor(propStudentFit5, gammaFit5C)
+bayes_factor(propStudentFit5, studentFit5C)
+bayes_factor(propStudentFit5, studentFit5C)
+bayes_factor(propStudentFit5, studentFit5C)
+bayes_factor(propStudentFit5, linFit5C1)
+bayes_factor(propStudentFit5, propFit5C)
+bayes_factor(propStudentFit5, logPropFit5C)
+loo(propStudentFit5, gammaFit5C)
+
+propStudentFit5smooths <- conditional_smooths(propStudentFit5)
+plot(propStudentFit5smooths, stype = "raster", ask = FALSE)
+propStudentFit5effects <- conditional_effects(propStudentFit5, 
+                                              method = "posterior_predict",
+                                              robust = FALSE,
+                                              re_formula = NULL)
+propStudentFit5effects <- conditional_effects(propStudentFit5)
+plot(propStudentFit5effects, points = TRUE, ask = FALSE)
+
+##### Prediction ----
+## Fitted
+propStudentFit5finalFit <- posterior_predict(propStudentFit5)
+propStudentFit5finalFit5 <- t(t(propStudentFit5finalFit)*StormdataTrain3$HWRF)
+#propStudentFit5finalFitMean <- colMeans(propStudentFit5finalFit)*StormdataTrain3$HWRF
+propStudentFit5finalFitMean <- colMeans(propStudentFit5finalFit5)
+propStudentFit5finalFitMed <- apply(propStudentFit5finalFit5, 2, function(x){quantile(x, 0.5)})
+propStudentFit5finalFitLCB <- apply(propStudentFit5finalFit5, 2, function(x){quantile(x, 0.025)})
+propStudentFit5finalFitUCB <- apply(propStudentFit5finalFit5, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+propStudentFit5finalPreds <- posterior_predict(propStudentFit5, 
+                                               newdata = StormdataTestFinalscale2,
+                                               allow_new_levels = TRUE)
+propStudentFit5finalPreds <- t(t(propStudentFit5finalPreds)*StormdataTest3$HWRF)
+propStudentFit5finalPreds2 <- colMeans(propStudentFit5finalPreds)
+propStudentFit5finalPredsMed <- apply(propStudentFit5finalPreds, 2, function(x){quantile(x, 0.5)})
+propStudentFit5finalPredsLCB <- apply(propStudentFit5finalPreds, 2, function(x){quantile(x, 0.025)})
+propStudentFit5finalPredsUCB <- apply(propStudentFit5finalPreds, 2, function(x){quantile(x, 0.975)})
+
+propStudentFit5predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(propStudentFit5finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(propStudentFit5finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < propStudentFit5finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(propStudentFit5finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(propStudentFit5finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(propStudentFit5finalPredsLCB < Actual_Yvec & Actual_Yvec < propStudentFit5finalPredsUCB)
+)
+propStudentFit5predMetrics
+
+##### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = propStudentFit5finalPreds) +
+  labs(title = "GammaFit5 Predict")
+
+propStudentFit5FitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = propStudentFit5finalFitLCB,
+  Mean = propStudentFit5finalFitMean,
+  Med = propStudentFit5finalFitMed,
+  UCB = propStudentFit5finalFitUCB
+) 
+
+ggplot(data = propStudentFit5FitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+propStudentFit5PredDF <- bind_cols(
+  StormdataTest3,
+  LCB = propStudentFit5finalPredsLCB,
+  Mean = propStudentFit5finalPreds2,
+  Med = propStudentFit5finalPredsMed,
+  UCB = propStudentFit5finalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = propStudentFit5PredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX), color = "red") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50))
+
+ppc_q2.5_plot2 <- 
+  ppc_stat(Y2train, YppcSamps2Comb, stat = function(y) quantile(y, 0.025), freq = FALSE) +
+  labs(title = "2.5% Quantile") +
+  theme_bw() +
+  legend_none()
+
+ppcL2dens <- density(ppcL2)
+ppcL2dens <- cbind(ppcL2dens$x, ppcL2dens$y)
+ppcL2densB <- ppcL2dens[between(ppcL2dens[,1], quantile(ppcL2, 0.025), quantile(ppcL2, 0.975)), ] 
+ppc_q2.5_plot2B <- ggplot() +
+  # geom_histogram(aes(x = ppcL2,  after_stat(density)),
+  #                fill = "#bcdcdc", color = "#99c7c7") +
+  geom_ribbon(aes(x = ppcL2densB[,1], ymin = 0, ymax = ppcL2densB[,2]),
+              fill = "#bcdcdc") +
+  geom_density(aes(x = ppcL2), color = "#99c7c7", linewidth = .75) +
+  #geom_vline(aes(xintercept = quantile(ppcL2, 0.975)), color = "#007C7C", linewidth = 2) +
+  geom_vline(aes(xintercept = DppcL2), color = "#007C7C", linewidth = 1) +
+  geom_text(aes(label = paste0("p-value = ", round(mean(ppcL2 > DppcL2), 3))),
+            x = 0.84*max(ppcL2), y = max(ppcL2dens[,2]), size = 3) +
+  scale_y_continuous(expand = expansion(mult = c(0,0.05))) +
+  labs(title = "2.5% Quantile",
+       x = NULL,
+       y = "Posterior Density") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(size = rel(1)))
+ppc_q2.5_plot2B
+rm(propStudentFit5finalFit)
+rm(propStudentFit5finalFit5)
+rm(propStudentFit5finalPreds)
 
 ### GAMMA ----
 #### Model 1 ----
@@ -1709,7 +2263,7 @@ round(posterior_summary(logpropStudentFit1, probs = c(0.025, 0.975)))
 logpropStudentFit1
 
 print(logpropStudentFit1, digits = 4)
-pp_check(logpropStudentFit1, ndraws = 1705)
+pp_check(logpropStudentFit1, ndraws = 100) + labs(title = "logpropStudentFit1 PPC")
 plot(logpropStudentFit1)
 loo(logpropStudentFit1)
 waic(logpropStudentFit1)
@@ -1865,7 +2419,7 @@ round(posterior_summary(logpropStudentFit2, probs = c(0.025, 0.975)))
 logpropStudentFit2
 
 print(logpropStudentFit2, digits = 4)
-pp_check(logpropStudentFit2, ndraws = 100)
+pp_check(logpropStudentFit2, ndraws = 100) + labs(title = "logpropStudentFit2 PPC")
 plot(logpropStudentFit2)
 loo(logpropStudentFit2)
 waic(logpropStudentFit2)
@@ -2135,34 +2689,368 @@ rm(logpropStudentFit3finalFit)
 rm(logpropStudentFit3finalFit2)
 rm(logpropStudentFit3finalPreds)
 
+#### Model 4 ----
+logpropStudentFit4 <- brm(
+  bf(
+    log(VMAX/HWRF) ~
+      #Month +
+      basin + 
+      #LON +
+      #LAT +
+      s(Day) +
+      s(StormElapsedTime) + 
+      #s(StormElapsedTime, by = StormID, m = 1) +
+      t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1|StormID)
+  ),
+  data = StormdataTrain8, 
+  family = student(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+save(logpropStudentFit4, file = "_data/logpropStudentFit4.RData")
+prior_summary(logpropStudentFit4)
+round(posterior_summary(logpropStudentFit4, probs = c(0.025, 0.975)))
+logpropStudentFit4
+
+print(logpropStudentFit4, digits = 4)
+pp_check(logpropStudentFit4, ndraws = 100)
+plot(logpropStudentFit4)
+loo(logpropStudentFit4)
+waic(logpropStudentFit4)
+performance::check_distribution(logpropStudentFit4)
+performance::check_outliers(logpropStudentFit4)
+performance::check_heteroskedasticity(logpropStudentFit4)
+performance_rmse(logpropStudentFit4)
+performance_mae(logpropStudentFit4)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(logpropStudentFit4)
+
+
+variance_decomposition(logpropStudentFit4)
+exp(fixef(logpropStudentFit4))
+ranef(logpropStudentFit4)
+
+bayes_R2(logpropStudentFit4)
+loo_R2(logpropStudentFit4)
+
+bayes_factor(logpropStudentFit4, logpropStudentFit1)
+bayes_factor(logpropStudentFit4, logpropStudentFit2)
+bayes_factor(logpropStudentFit4, logpropStudentFit3)
+bayes_factor(logpropStudentFit4, logpropStudentFit5)
+bayes_factor(logpropStudentFit4, studentFit6)
+bayes_factor(logpropStudentFit4, studentFit6)
+bayes_factor(logpropStudentFit4, studentFit6)
+bayes_factor(logpropStudentFit4, linFit61)
+bayes_factor(logpropStudentFit4, propFit6)
+bayes_factor(logpropStudentFit4, logPropFit6)
+loo(logpropStudentFit4, gammaFit6)
+
+logpropStudentFit4smooths <- conditional_smooths(logpropStudentFit4)
+plot(logpropStudentFit4smooths, stype = "raster", ask = FALSE)
+logpropStudentFit4effects <- conditional_effects(logpropStudentFit4, 
+                                                 method = "posterior_predict",
+                                                 robust = FALSE,
+                                                 re_formula = NULL)
+logpropStudentFit4effects <- conditional_effects(logpropStudentFit4)
+plot(logpropStudentFit4effects, points = TRUE, ask = FALSE)
+
+##### Prediction ----
+## Fitted
+logpropStudentFit4finalFit <- posterior_predict(logpropStudentFit4)
+logpropStudentFit4finalFit2 <- t(t(exp(logpropStudentFit4finalFit))*StormdataTrain3$HWRF)
+#logpropStudentFit4finalFitMean <- colMeans(logpropStudentFit4finalFit)*StormdataTrain3$HWRF
+logpropStudentFit4finalFitMean <- colMeans(logpropStudentFit4finalFit2)
+logpropStudentFit4finalFitMed <- apply(logpropStudentFit4finalFit2, 2, function(x){quantile(x, 0.5)})
+logpropStudentFit4finalFitLCB <- apply(logpropStudentFit4finalFit2, 2, function(x){quantile(x, 0.025)})
+logpropStudentFit4finalFitUCB <- apply(logpropStudentFit4finalFit2, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+logpropStudentFit4finalPreds <- posterior_predict(logpropStudentFit4, 
+                                                  newdata = StormdataTestFinalscale2,
+                                                  allow_new_levels = TRUE)
+logpropStudentFit4finalPreds <- t(t(exp(logpropStudentFit4finalPreds))*StormdataTest3$HWRF)
+logpropStudentFit4finalPreds2 <- colMeans(logpropStudentFit4finalPreds)
+logpropStudentFit4finalPredsMed <- apply(logpropStudentFit4finalPreds, 2, function(x){quantile(x, 0.5)})
+logpropStudentFit4finalPredsLCB <- apply(logpropStudentFit4finalPreds, 2, function(x){quantile(x, 0.025)})
+logpropStudentFit4finalPredsUCB <- apply(logpropStudentFit4finalPreds, 2, function(x){quantile(x, 0.975)})
+
+logpropStudentFit4predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(logpropStudentFit4finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(logpropStudentFit4finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < logpropStudentFit4finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(logpropStudentFit4finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(logpropStudentFit4finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(logpropStudentFit4finalPredsLCB < Actual_Yvec & Actual_Yvec < logpropStudentFit4finalPredsUCB)
+)
+logpropStudentFit4predMetrics
+
+##### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = logpropStudentFit4finalPreds) +
+  labs(title = "logpropStudentFit4 Predict")
+
+logpropStudentFit4FitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = logpropStudentFit4finalFitLCB,
+  Mean = logpropStudentFit4finalFitMean,
+  Med = logpropStudentFit4finalFitMed,
+  UCB = logpropStudentFit4finalFitUCB
+) 
+
+ggplot(data = logpropStudentFit4FitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+logpropStudentFit4PredDF <- bind_cols(
+  StormdataTest3,
+  LCB = logpropStudentFit4finalPredsLCB,
+  Mean = logpropStudentFit4finalPreds2,
+  Med = logpropStudentFit4finalPredsMed,
+  UCB = logpropStudentFit4finalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = logpropStudentFit4PredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX), color = "red") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50))
+
+rm(logpropStudentFit4finalFit)
+rm(logpropStudentFit4finalFit2)
+rm(logpropStudentFit4finalPreds)
+
+#### Model 5 ----
+logpropStudentFit5 <- brm(
+  bf(
+    log(VMAX/HWRF) ~
+      #Year +
+      #Month +
+      basin + 
+      LON +
+      LAT +
+      s(Day) +
+      StormElapsedTime + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1+StormElapsedTime|StormID)
+  ),
+  data = StormdataTrain8, 
+  family = student(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+
+save(logpropStudentFit5, file = "_data/logpropStudentFit5.RData")
+prior_summary(logpropStudentFit5)
+round(posterior_summary(logpropStudentFit5, probs = c(0.025, 0.975)))
+logpropStudentFit5
+
+print(logpropStudentFit5, digits = 4)
+pp_check(logpropStudentFit5, ndraws = 100)
+plot(logpropStudentFit5)
+loo(logpropStudentFit5)
+waic(logpropStudentFit5)
+performance::check_distribution(logpropStudentFit5)
+performance::check_outliers(logpropStudentFit5)
+performance::check_heteroskedasticity(logpropStudentFit5)
+performance_rmse(logpropStudentFit5)
+performance_mae(logpropStudentFit5)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(logpropStudentFit5)
+
+
+variance_decomposition(logpropStudentFit5)
+exp(fixef(logpropStudentFit5))
+ranef(logpropStudentFit5)
+
+bayes_R2(logpropStudentFit5)
+loo_R2(logpropStudentFit5)
+
+bayes_factor(logpropStudentFit5, logpropStudentFit1)
+bayes_factor(logpropStudentFit5, logpropStudentFit2)
+bayes_factor(logpropStudentFit5, logpropStudentFit3)
+bayes_factor(logpropStudentFit5, 
+             logpropStudentFit4)
+bayes_factor(logpropStudentFit5, studentFit6)
+bayes_factor(logpropStudentFit5, studentFit6)
+bayes_factor(logpropStudentFit5, linFit61)
+bayes_factor(logpropStudentFit5, propFit6)
+bayes_factor(logpropStudentFit5, logPropFit6)
+loo(logpropStudentFit5, gammaFit6)
+
+logpropStudentFit5smooths <- conditional_smooths(logpropStudentFit5)
+plot(logpropStudentFit5smooths, stype = "raster", ask = FALSE)
+logpropStudentFit5effects <- conditional_effects(logpropStudentFit5, 
+                                                 method = "posterior_predict",
+                                                 robust = FALSE,
+                                                 re_formula = NULL)
+logpropStudentFit5effects <- conditional_effects(logpropStudentFit5)
+plot(logpropStudentFit5effects, points = TRUE, ask = FALSE)
+
+##### Prediction ----
+## Fitted
+logpropStudentFit5finalFit <- posterior_predict(logpropStudentFit5)
+logpropStudentFit5finalFit2 <- t(t(exp(logpropStudentFit5finalFit))*StormdataTrain3$HWRF)
+#logpropStudentFit5finalFitMean <- colMeans(logpropStudentFit5finalFit)*StormdataTrain3$HWRF
+logpropStudentFit5finalFitMean <- colMeans(logpropStudentFit5finalFit2)
+logpropStudentFit5finalFitMed <- apply(logpropStudentFit5finalFit2, 2, function(x){quantile(x, 0.5)})
+logpropStudentFit5finalFitLCB <- apply(logpropStudentFit5finalFit2, 2, function(x){quantile(x, 0.025)})
+logpropStudentFit5finalFitUCB <- apply(logpropStudentFit5finalFit2, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+logpropStudentFit5finalPreds <- posterior_predict(logpropStudentFit5, 
+                                                  newdata = StormdataTestFinalscale2,
+                                                  allow_new_levels = TRUE)
+logpropStudentFit5finalPreds <- t(t(exp(logpropStudentFit5finalPreds))*StormdataTest3$HWRF)
+logpropStudentFit5finalPreds2 <- colMeans(logpropStudentFit5finalPreds)
+logpropStudentFit5finalPredsMed <- apply(logpropStudentFit5finalPreds, 2, function(x){quantile(x, 0.5)})
+logpropStudentFit5finalPredsLCB <- apply(logpropStudentFit5finalPreds, 2, function(x){quantile(x, 0.025)})
+logpropStudentFit5finalPredsUCB <- apply(logpropStudentFit5finalPreds, 2, function(x){quantile(x, 0.975)})
+
+logpropStudentFit5predMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(logpropStudentFit5finalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(logpropStudentFit5finalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < logpropStudentFit5finalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(logpropStudentFit5finalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(logpropStudentFit5finalPredsMed - Actual_Yvec)),
+  COV_pred = mean(logpropStudentFit5finalPredsLCB < Actual_Yvec & Actual_Yvec < logpropStudentFit5finalPredsUCB)
+)
+logpropStudentFit5predMetrics
+
+##### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = logpropStudentFit5finalPreds) +
+  labs(title = "logpropStudentFit5 Predict")
+
+logpropStudentFit5FitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = logpropStudentFit5finalFitLCB,
+  Mean = logpropStudentFit5finalFitMean,
+  Med = logpropStudentFit5finalFitMed,
+  UCB = logpropStudentFit5finalFitUCB
+) 
+
+ggplot(data = logpropStudentFit5FitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+logpropStudentFit5PredDF <- bind_cols(
+  StormdataTest3,
+  LCB = logpropStudentFit5finalPredsLCB,
+  Mean = logpropStudentFit5finalPreds2,
+  Med = logpropStudentFit5finalPredsMed,
+  UCB = logpropStudentFit5finalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = logpropStudentFit5PredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX), color = "red") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50))
+
+rm(logpropStudentFit5finalFit)
+rm(logpropStudentFit5finalFit2)
+rm(logpropStudentFit5finalPreds)
 
 # Compare Predictions ----
 propLinFit1loo <- loo(propLinFit1)
 propStudentFit1loo <- loo(propStudentFit1)
+propStudentFit2loo <- loo(propStudentFit2)
+propStudentFit3loo <- loo(propStudentFit3)
+propStudentFit4loo <- loo(propStudentFit4)
+propStudentFit5loo <- loo(propStudentFit5)
 propGammaFit1loo <- loo(propGammaFit1)
 logpropLinFit1loo <- loo(logpropLinFit1)
 logpropStudentFit1loo <- loo(logpropStudentFit1)
 logpropStudentFit2loo <- loo(logpropStudentFit2)
 logpropStudentFit3loo <- loo(logpropStudentFit3)
+logpropStudentFit4loo <- loo(logpropStudentFit4)
+logpropStudentFit5loo <- loo(logpropStudentFit5)
 
 looComp <- loo_compare(propLinFit1loo,
                        propStudentFit1loo,
+                       propStudentFit2loo,
+                       propStudentFit3loo,
+                       propStudentFit4loo,
+                       propStudentFit5loo,
                        propGammaFit1loo,
                        logpropLinFit1loo,
                        logpropStudentFit1loo,
                        logpropStudentFit2loo,
-                       logpropStudentFit3loo)
+                       logpropStudentFit3loo,
+                       logpropStudentFit4loo,
+                       logpropStudentFit5loo)
 looComp
 save(looComp, file = "_data/looCompFinal.RData")
 
 predCompMetrics <- bind_rows(
   propLinFit1predMetrics |> bind_cols(Fit = "propLinFit1"),
   propStudentFit1predMetrics |> bind_cols(Fit = "propStudentFit1"),
+  propStudentFit2predMetrics |> bind_cols(Fit = "propStudentFit2"),
+  propStudentFit3predMetrics |> bind_cols(Fit = "propStudentFit3"),
+  propStudentFit4predMetrics |> bind_cols(Fit = "propStudentFit4"),
+  propStudentFit5predMetrics |> bind_cols(Fit = "propStudentFit5"),
   propGammaFit1predMetrics |> bind_cols(Fit = "propGammaFit1"),
   logpropLinFit1predMetrics |> bind_cols(Fit = "logpropLinFit1"),
   logpropStudentFit1predMetrics |> bind_cols(Fit = "logpropStudentFit1"),
   logpropStudentFit2predMetrics |> bind_cols(Fit = "logpropStudentFit2"),
   logpropStudentFit3predMetrics |> bind_cols(Fit = "logpropStudentFit3"),
+  logpropStudentFit4predMetrics |> bind_cols(Fit = "logpropStudentFit4"),
+  logpropStudentFit5predMetrics |> bind_cols(Fit = "logpropStudentFit5"),
 )
 predCompMetrics <- predCompMetrics |> arrange(MAE_pred)
 
