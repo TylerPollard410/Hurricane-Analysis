@@ -1831,7 +1831,7 @@ logpropStudentFit3 <- brm(
       LON +
       LAT +
       Day +
-      StormElapsedTime + 
+      s(StormElapsedTime) + 
       #t2(LON, LAT) +
       MINSLP +
       SHR_MAG +
