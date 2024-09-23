@@ -637,7 +637,7 @@ ggplot(data = StormdataTrain8) +
     plot.subtitle = element_text(size = 12)
   )
 
-ggplot(data = StormdataTrain8) +
+t <- ggplot(data = StormdataTrain8) +
   geom_histogram(
     aes(x = log(propVMAX), after_stat(density)),
     color = "#99c7c7", fill = "#bcdcdc",
@@ -2832,15 +2832,15 @@ bayes_factor(gammaFit4, propFit1)
 bayes_factor(gammaFit4, logPropFit1)
 loo(gammaFit4, gammaFit3)
 
-gammaFit4smooths <- conditional_smooths(gammaFit4, spaghetti = TRUE, ndraws = 100,)
+gammaFit4smooths <- conditional_smooths(gammaFit4)
 plot(gammaFit4smooths, stype = "raster")
 gammaFit4effects <- conditional_effects(gammaFit4, 
                                         method = "posterior_predict",
                                         robust = FALSE,
                                         re_formula = NULL)
 #spaghetti = TRUE,
-#ndraws = 100)
-plot(gammaFit4effects, points = TRUE)
+gammaFit4effects <- conditional_effects(gammaFit4)
+plot(gammaFit4effects, points = TRUE, ask = TRUE)
 
 #### Prediction ----
 ## Fitted
@@ -4486,13 +4486,14 @@ ggplot(data = propLinFit2BPredDF, aes(x = StormElapsedTime)) +
 rm(propLinFit2BfinalFit)
 rm(propLinFit2BfinalPreds)
 
-### Model 2 ----
+### Model 2C ----
+
 propLinFit2C <- brm(
   bf(
-    VMAX ~ HWRF*exp(eta),
+    VMAX ~ HWRF + exp(eta),
     eta ~
       #Year +
-      Month +
+      #Month +
       basin + 
       LON +
       LAT +
@@ -4526,6 +4527,8 @@ propLinFit2C <- brm(
   seed = 52,
   warmup = 1000
 )
+
+propLinFit2Ccode
 save(propLinFit2C, file = "_data/propLinFit2C.RData")
 prior_summary(propLinFit2C)
 round(posterior_summary(propLinFit2C, probs = c(0.025, 0.975)))
@@ -4533,7 +4536,7 @@ propLinFit2C
 
 print(propLinFit2C, digits = 4)
 plot(propLinFit2C)
-pp_check(propLinFit2C, ndraws = 100)
+pp_check(propLinFit2E, ndraws = 100)
 loo(propLinFit2C)
 waic(propLinFit2C)
 performance::check_distribution(propLinFit2C)
@@ -4574,7 +4577,7 @@ plot(propLinFit2Ceffects, points = TRUE, ask = FALSE)
 #### Prediction ----
 ## Fitted
 propLinFit2CfinalFit <- posterior_predict(propLinFit2C)
-propLinFit2CfinalFit <- t(t(propLinFit2CfinalFit)*StormdataTrain3$HWRF)
+propLinFit2CfinalFit <- t(t(propLinFit2CfinalFit))
 #propLinFit2CfinalFitMean <- colMeans(propLinFit2CfinalFit)*StormdataTrain3$HWRF
 propLinFit2CfinalFitMean <- colMeans(propLinFit2CfinalFit)
 propLinFit2CfinalFitMed <- apply(propLinFit2CfinalFit, 2, function(x){quantile(x, 0.5)})
@@ -4640,6 +4643,519 @@ ggplot(data = propLinFit2CPredDF, aes(x = StormElapsedTime)) +
 
 rm(propLinFit2CfinalFit)
 rm(propLinFit2CfinalPreds)
+
+### Model 2D ----
+propLinFit2D <- brm(
+  bf(
+    VMAX ~ log(HWRF) + eta,
+    eta ~
+      #Year +
+      #Month +
+      #basin + 
+      LON +
+      LAT +
+      #s(Day) +
+      #s(StormElapsedTime) + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1|StormID),
+    nl = TRUE
+  ),
+  data = StormdataTrain8, 
+  family = lognormal(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+
+### Model 2D ----
+propLinFit2D2 <- brm(
+  bf(
+    VMAX ~ log(HWRF) + eta,
+    eta ~
+      #Year +
+      #Month +
+      #basin + 
+      LON +
+      LAT +
+      #s(Day) +
+      #s(StormElapsedTime) + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1|StormID),
+    nl = TRUE
+  ),
+  data = StormdataTrain8, 
+  family = lognormal(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+
+propLinFit2Dcode
+save(propLinFit2D, file = "_data/propLinFit2D.RData")
+prior_summary(propLinFit2D)
+round(posterior_summary(propLinFit2D, probs = c(0.025, 0.975)))
+propLinFit2D
+
+print(propLinFit2D, digits = 4)
+plot(propLinFit2D)
+pp_check(propLinFit2D, ndraws = 100)
+loo(propLinFit2D)
+waic(propLinFit2D)
+performance::check_distribution(propLinFit2D)
+performance::check_outliers(propLinFit2D)
+performance::check_heteroskedasticity(propLinFit2D)
+performance_rmse(propLinFit2D)
+performance_mae(propLinFit2D)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(propLinFit2D)
+
+
+variance_decomposition(propLinFit2D)
+exp(fixef(propLinFit2D))
+ranef(propLinFit2D)
+
+bayes_R2(propLinFit2D)
+
+bayes_factor(propLinFit2D, propLinFit1)
+bayes_factor(propLinFit2D, gammaFit2D)
+bayes_factor(propLinFit2D, gammaFit3)
+bayes_factor(propLinFit2D, studentFit2D)
+bayes_factor(propLinFit2D, studentFit2D)
+bayes_factor(propLinFit2D, studentFit3)
+bayes_factor(propLinFit2D, linFit2D1)
+bayes_factor(propLinFit2D, propFit2D)
+bayes_factor(propLinFit2D, logPropFit2D)
+loo(propLinFit2D, gammaFit3)
+
+propLinFit2Dsmooths <- conditional_smooths(propLinFit2D)
+plot(propLinFit2Dsmooths, stype = "raster", ask = FALSE)
+propLinFit2Deffects <- conditional_effects(propLinFit2D, 
+                                           method = "posterior_predict",
+                                           robust = FALSE,
+                                           re_formula = NULL)
+propLinFit2Deffects <- conditional_effects(propLinFit2D)
+plot(propLinFit2Deffects, points = TRUE, ask = FALSE)
+
+#### Prediction ----
+## Fitted
+propLinFit2DfinalFit <- posterior_predict(propLinFit2D)
+propLinFit2DfinalFit <- t(t(propLinFit2DfinalFit)*StormdataTrain3$HWRF)
+#propLinFit2DfinalFitMean <- colMeans(propLinFit2DfinalFit)*StormdataTrain3$HWRF
+propLinFit2DfinalFitMean <- colMeans(propLinFit2DfinalFit)
+propLinFit2DfinalFitMed <- apply(propLinFit2DfinalFit, 2, function(x){quantile(x, 0.5)})
+propLinFit2DfinalFitLCB <- apply(propLinFit2DfinalFit, 2, function(x){quantile(x, 0.025)})
+propLinFit2DfinalFitUCB <- apply(propLinFit2DfinalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+propLinFit2DfinalPreds <- posterior_predict(propLinFit2D, 
+                                            newdata = StormdataTestFinalscale2,
+                                            allow_new_levels = TRUE)
+propLinFit2DfinalPreds <- t(t(propLinFit2DfinalPreds)*StormdataTest3$HWRF)
+propLinFit2DfinalPreds2 <- colMeans(propLinFit2DfinalPreds)
+propLinFit2DfinalPredsMed <- apply(propLinFit2DfinalPreds, 2, function(x){quantile(x, 0.5)})
+propLinFit2DfinalPredsLCB <- apply(propLinFit2DfinalPreds, 2, function(x){quantile(x, 0.025)})
+propLinFit2DfinalPredsUCB <- apply(propLinFit2DfinalPreds, 2, function(x){quantile(x, 0.975)})
+
+propLinFit2DpredMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(propLinFit2DfinalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(propLinFit2DfinalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < propLinFit2DfinalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(propLinFit2DfinalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(propLinFit2DfinalPredsMed - Actual_Yvec)),
+  COV_pred = mean(propLinFit2DfinalPredsLCB < Actual_Yvec & Actual_Yvec < propLinFit2DfinalPredsUCB)
+)
+propLinFit2DpredMetrics
+
+#### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = propLinFit2DfinalPreds) +
+  labs(title = "GammaFit5 Predict")
+
+propLinFit2DFitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = propLinFit2DfinalFitLCB,
+  Mean = propLinFit2DfinalFitMean,
+  Med = propLinFit2DfinalFitMed,
+  UCB = propLinFit2DfinalFitUCB
+) 
+
+ggplot(data = propLinFit2DFitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+propLinFit2DPredDF <- bind_cols(
+  StormdataTest3,
+  LCB = propLinFit2DfinalPredsLCB,
+  Mean = propLinFit2DfinalPreds2,
+  Med = propLinFit2DfinalPredsMed,
+  UCB = propLinFit2DfinalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = propLinFit2DPredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+rm(propLinFit2DfinalFit)
+rm(propLinFit2DfinalPreds)
+
+### Model 2E ----
+propLinFit2E <- brm(
+  bf(
+    VMAX ~ log(HWRF) + eta - 1,
+    eta ~
+      #Year +
+      #Month +
+      #basin + 
+      LON +
+      LAT +
+      #s(Day) +
+      #s(StormElapsedTime) + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1|StormID),
+    nl = TRUE
+  ),
+  data = StormdataTrain8, 
+  family = lognormal(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+
+propLinFit2Ecode
+save(propLinFit2E, file = "_data/propLinFit2E.RData")
+prior_summary(propLinFit2E)
+round(posterior_summary(propLinFit2E, probs = c(0.025, 0.975)))
+propLinFit2E
+
+print(propLinFit2E, digits = 4)
+plot(propLinFit2E)
+pp_check(propLinFit2E, ndraws = 100)
+loo(propLinFit2E)
+waic(propLinFit2E)
+performance::check_distribution(propLinFit2E)
+performance::check_outliers(propLinFit2E)
+performance::check_heteroskedasticity(propLinFit2E)
+performance_rmse(propLinFit2E)
+performance_mae(propLinFit2E)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(propLinFit2E)
+
+
+variance_decomposition(propLinFit2E)
+exp(fixef(propLinFit2E))
+ranef(propLinFit2E)
+
+bayes_R2(propLinFit2E)
+
+bayes_factor(propLinFit2E, propLinFit1)
+bayes_factor(propLinFit2E, gammaFit2E)
+bayes_factor(propLinFit2E, gammaFit3)
+bayes_factor(propLinFit2E, studentFit2E)
+bayes_factor(propLinFit2E, studentFit2E)
+bayes_factor(propLinFit2E, studentFit3)
+bayes_factor(propLinFit2E, linFit2E1)
+bayes_factor(propLinFit2E, propFit2E)
+bayes_factor(propLinFit2E, logPropFit2E)
+loo(propLinFit2E, gammaFit3)
+
+propLinFit2Esmooths <- conditional_smooths(propLinFit2E)
+plot(propLinFit2Esmooths, stype = "raster", ask = FALSE)
+propLinFit2Eeffects <- conditional_effects(propLinFit2E, 
+                                           method = "posterior_predict",
+                                           robust = FALSE,
+                                           re_formula = NULL)
+propLinFit2Eeffects <- conditional_effects(propLinFit2E)
+plot(propLinFit2Eeffects, points = TRUE, ask = FALSE)
+
+#### Prediction ----
+## Fitted
+propLinFit2EfinalFit <- posterior_predict(propLinFit2E)
+propLinFit2EfinalFit <- t(t(propLinFit2EfinalFit)*StormdataTrain3$HWRF)
+#propLinFit2EfinalFitMean <- colMeans(propLinFit2EfinalFit)*StormdataTrain3$HWRF
+propLinFit2EfinalFitMean <- colMeans(propLinFit2EfinalFit)
+propLinFit2EfinalFitMed <- apply(propLinFit2EfinalFit, 2, function(x){quantile(x, 0.5)})
+propLinFit2EfinalFitLCB <- apply(propLinFit2EfinalFit, 2, function(x){quantile(x, 0.025)})
+propLinFit2EfinalFitUCB <- apply(propLinFit2EfinalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+propLinFit2EfinalPreds <- posterior_predict(propLinFit2E, 
+                                            newdata = StormdataTestFinalscale2,
+                                            allow_new_levels = TRUE)
+propLinFit2EfinalPreds <- t(t(propLinFit2EfinalPreds)*StormdataTest3$HWRF)
+propLinFit2EfinalPreds2 <- colMeans(propLinFit2EfinalPreds)
+propLinFit2EfinalPredsMed <- apply(propLinFit2EfinalPreds, 2, function(x){quantile(x, 0.5)})
+propLinFit2EfinalPredsLCB <- apply(propLinFit2EfinalPreds, 2, function(x){quantile(x, 0.025)})
+propLinFit2EfinalPredsUCB <- apply(propLinFit2EfinalPreds, 2, function(x){quantile(x, 0.975)})
+
+propLinFit2EpredMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(propLinFit2EfinalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(propLinFit2EfinalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < propLinFit2EfinalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(propLinFit2EfinalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(propLinFit2EfinalPredsMed - Actual_Yvec)),
+  COV_pred = mean(propLinFit2EfinalPredsLCB < Actual_Yvec & Actual_Yvec < propLinFit2EfinalPredsUCB)
+)
+propLinFit2EpredMetrics
+
+#### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = propLinFit2EfinalPreds) +
+  labs(title = "GammaFit5 Predict")
+
+propLinFit2EFitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = propLinFit2EfinalFitLCB,
+  Mean = propLinFit2EfinalFitMean,
+  Med = propLinFit2EfinalFitMed,
+  UCB = propLinFit2EfinalFitUCB
+) 
+
+ggplot(data = propLinFit2EFitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+propLinFit2EPredDF <- bind_cols(
+  StormdataTest3,
+  LCB = propLinFit2EfinalPredsLCB,
+  Mean = propLinFit2EfinalPreds2,
+  Med = propLinFit2EfinalPredsMed,
+  UCB = propLinFit2EfinalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = propLinFit2EPredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+rm(propLinFit2EfinalFit)
+rm(propLinFit2EfinalPreds)
+
+### Model 2F ----
+propLinFit2F <- brm(
+  bf(
+    VMAX ~ log(HWRF) + eta + 1,
+    eta ~
+      #Year +
+      #Month +
+      #basin + 
+      LON +
+      LAT +
+      #s(Day) +
+      #s(StormElapsedTime) + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      #HWRF +
+      (1|StormID),
+    nl = TRUE
+  ),
+  data = StormdataTrain8, 
+  family = lognormal(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+
+propLinFit2Fcode
+save(propLinFit2F, file = "_data/propLinFit2F.RData")
+prior_summary(propLinFit2F)
+round(posterior_summary(propLinFit2F, probs = c(0.025, 0.975)))
+propLinFit2F
+
+print(propLinFit2F, digits = 4)
+plot(propLinFit2F)
+pp_check(propLinFit2F, ndraws = 100)
+loo(propLinFit2F)
+waic(propLinFit2F)
+performance::check_distribution(propLinFit2F)
+performance::check_outliers(propLinFit2F)
+performance::check_heteroskedasticity(propLinFit2F)
+performance_rmse(propLinFit2F)
+performance_mae(propLinFit2F)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(propLinFit2F)
+
+
+variance_decomposition(propLinFit2F)
+exp(fixef(propLinFit2F))
+ranef(propLinFit2F)
+
+bayes_R2(propLinFit2F)
+
+bayes_factor(propLinFit2F, propLinFit2E)
+bayes_factor(propLinFit2F, propLinFit2D)
+bayes_factor(propLinFit2F, propLinFit2C)
+bayes_factor(propLinFit2F, studentFit2F)
+bayes_factor(propLinFit2F, studentFit2F)
+bayes_factor(propLinFit2F, studentFit3)
+bayes_factor(propLinFit2F, linFit2F1)
+bayes_factor(propLinFit2F, propFit2F)
+bayes_factor(propLinFit2F, logPropFit2F)
+loo(propLinFit2F, gammaFit3)
+
+propLinFit2Fsmooths <- conditional_smooths(propLinFit2F)
+plot(propLinFit2Fsmooths, stype = "raster", ask = FALSE)
+propLinFit2Feffects <- conditional_effects(propLinFit2F, 
+                                           method = "posterior_predict",
+                                           robust = FALSE,
+                                           re_formula = NULL)
+propLinFit2Feffects <- conditional_effects(propLinFit2F)
+plot(propLinFit2Feffects, points = TRUE, ask = FALSE)
+
+#### Prediction ----
+## Fitted
+propLinFit2FfinalFit <- posterior_predict(propLinFit2F)
+propLinFit2FfinalFit <- t(t(propLinFit2FfinalFit)*StormdataTrain3$HWRF)
+#propLinFit2FfinalFitMean <- colMeans(propLinFit2FfinalFit)*StormdataTrain3$HWRF
+propLinFit2FfinalFitMean <- colMeans(propLinFit2FfinalFit)
+propLinFit2FfinalFitMed <- apply(propLinFit2FfinalFit, 2, function(x){quantile(x, 0.5)})
+propLinFit2FfinalFitLCB <- apply(propLinFit2FfinalFit, 2, function(x){quantile(x, 0.025)})
+propLinFit2FfinalFitUCB <- apply(propLinFit2FfinalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+propLinFit2FfinalPreds <- posterior_predict(propLinFit2F, 
+                                            newdata = StormdataTestFinalscale2,
+                                            allow_new_levels = TRUE)
+propLinFit2FfinalPreds <- t(t(propLinFit2FfinalPreds)*StormdataTest3$HWRF)
+propLinFit2FfinalPreds2 <- colMeans(propLinFit2FfinalPreds)
+propLinFit2FfinalPredsMed <- apply(propLinFit2FfinalPreds, 2, function(x){quantile(x, 0.5)})
+propLinFit2FfinalPredsLCB <- apply(propLinFit2FfinalPreds, 2, function(x){quantile(x, 0.025)})
+propLinFit2FfinalPredsUCB <- apply(propLinFit2FfinalPreds, 2, function(x){quantile(x, 0.975)})
+
+propLinFit2FpredMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(propLinFit2FfinalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(propLinFit2FfinalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < propLinFit2FfinalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(propLinFit2FfinalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(propLinFit2FfinalPredsMed - Actual_Yvec)),
+  COV_pred = mean(propLinFit2FfinalPredsLCB < Actual_Yvec & Actual_Yvec < propLinFit2FfinalPredsUCB)
+)
+propLinFit2FpredMetrics
+
+#### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = propLinFit2FfinalPreds) +
+  labs(title = "GammaFit5 Predict")
+
+propLinFit2FFitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = propLinFit2FfinalFitLCB,
+  Mean = propLinFit2FfinalFitMean,
+  Med = propLinFit2FfinalFitMed,
+  UCB = propLinFit2FfinalFitUCB
+) 
+
+ggplot(data = propLinFit2FFitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+## Prediction
+propLinFit2FPredDF <- bind_cols(
+  StormdataTest3,
+  LCB = propLinFit2FfinalPredsLCB,
+  Mean = propLinFit2FfinalPreds2,
+  Med = propLinFit2FfinalPredsMed,
+  UCB = propLinFit2FfinalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = propLinFit2FPredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))
+
+rm(propLinFit2FfinalFit)
+rm(propLinFit2FfinalPreds)
+
 
 ### Model 3 ----
 propLinFit3 <- brm(
