@@ -1632,7 +1632,7 @@ rm(logNormalFit2finalFit)
 rm(logNormalFit2finalFit2)
 rm(logNormalFit2finalPreds)
 
-#### Model 2 ----
+#### Model 2A ----
 logNormalFit2A <- brm(
   bf(
     VMAX ~ 
@@ -1805,7 +1805,7 @@ logNormalFit2A_ppcLCB <-
   labs(title = paste0("2.5% Quantile (p-val = ", logNormalFit2ALCBpvalue, ")")) +
   theme_bw() +
   legend_none()
-logNormalFit2A_ppcLCB
+#logNormalFit2A_ppcLCB
 
 # logNormalFit2A_ppcLCB2 <- logNormalFit2A_ppcLCB +
 #   annotate(geom = "text",
@@ -1980,6 +1980,355 @@ logNormalFit2Apvalues
 rm(logNormalFit2AfinalFit)
 rm(logNormalFit2AfinalFit2)
 rm(logNormalFit2AfinalPreds)
+
+#### Model 2A ----
+logNormalFit2B <- brm(
+  bf(
+    VMAX ~ 
+      #Year +
+      #Month +
+      basin + 
+      LON +
+      LAT +
+      s(Day) +
+      s(StormElapsedTime) + 
+      #t2(LON, LAT) +
+      MINSLP +
+      SHR_MAG +
+      STM_SPD +
+      SST +
+      RHLO +
+      CAPE1 +
+      CAPE3 +
+      SHTFL2 +
+      TCOND7002 +
+      INST2 +
+      CP1 +
+      TCONDSYM2 +
+      COUPLSYM3 +
+      HWFI +
+      VMAX_OP_T0 +
+      log(HWRF) +
+      (1+StormElapsedTime|StormID)
+  ),
+  data = StormdataTrain7scale, 
+  family = lognormal(), 
+  save_pars = save_pars(all = TRUE), 
+  chains = 4,
+  iter = 2000,
+  seed = 52,
+  warmup = 1000
+)
+logNormalFit2Bcode
+save(logNormalFit2B, file = "_data/logNormalFit2B.RData")
+prior_summary(logNormalFit2B)
+round(posterior_summary(logNormalFit2B, probs = c(0.025, 0.975)))
+logNormalFit2B
+
+print(logNormalFit2B, digits = 4)
+plot(logNormalFit2B)
+pp_check(logNormalFit2B, ndraws = 100) + labs(title = "logNormalFit2B PPC")
+loo(logNormalFit2B)
+waic(logNormalFit2B)
+performance::check_distribution(logNormalFit2B)
+performance::check_outliers(logNormalFit2B)
+performance::check_heteroskedasticity(logNormalFit2B)
+performance_rmse(logNormalFit2B)
+performance_mae(logNormalFit2B)
+mean(abs(StormdataTrain3$VMAX - StormdataTrain3$HWRF))
+model_performance(logNormalFit2B)
+
+
+variance_decomposition(logNormalFit2B)
+exp(fixef(logNormalFit2B))
+ranef(logNormalFit2B)
+
+bayes_R2(logNormalFit2B)
+
+bayes_factor(logNormalFit2B, propLinFit1)
+bayes_factor(logNormalFit2B, gammaFit2E)
+bayes_factor(logNormalFit2B, gammaFit3)
+bayes_factor(logNormalFit2B, studentFit2E)
+bayes_factor(logNormalFit2B, studentFit2E)
+bayes_factor(logNormalFit2B, studentFit3)
+bayes_factor(logNormalFit2B, linFit2E1)
+bayes_factor(logNormalFit2B, propFit2E)
+bayes_factor(logNormalFit2B, logPropFit2E)
+loo(logNormalFit2B, gammaFit3)
+
+logNormalFit2Bsmooths <- conditional_smooths(logNormalFit2B)
+plot(logNormalFit2Bsmooths, stype = "raster", ask = FALSE)
+logNormalFit2Beffects <- conditional_effects(logNormalFit2B, 
+                                             method = "posterior_predict",
+                                             robust = FALSE,
+                                             re_formula = NULL)
+logNormalFit2Beffects <- conditional_effects(logNormalFit2B)
+plot(logNormalFit2Beffects, points = TRUE, ask = FALSE)
+
+##### Prediction ----
+## Fitted
+logNormalFit2BfinalFit <- posterior_predict(logNormalFit2B)
+logNormalFit2BfinalFit <- t(t(logNormalFit2BfinalFit)*StormdataTrain3$HWRF)
+#logNormalFit2BfinalFitMean <- colMeans(logNormalFit2BfinalFit)*StormdataTrain3$HWRF
+logNormalFit2BfinalFitMean <- colMeans(logNormalFit2BfinalFit)
+logNormalFit2BfinalFitMed <- apply(logNormalFit2BfinalFit, 2, function(x){quantile(x, 0.5)})
+logNormalFit2BfinalFitLCB <- apply(logNormalFit2BfinalFit, 2, function(x){quantile(x, 0.025)})
+logNormalFit2BfinalFitUCB <- apply(logNormalFit2BfinalFit, 2, function(x){quantile(x, 0.975)})
+
+## Prediction on new data
+logNormalFit2BfinalPreds <- posterior_predict(logNormalFit2B, 
+                                              newdata = StormdataTestFinalscale2,
+                                              allow_new_levels = TRUE)
+logNormalFit2BfinalPreds <- t(t(logNormalFit2BfinalPreds)*StormdataTest3$HWRF)
+logNormalFit2BfinalPreds2 <- colMeans(logNormalFit2BfinalPreds)
+logNormalFit2BfinalPredsMed <- apply(logNormalFit2BfinalPreds, 2, function(x){quantile(x, 0.5)})
+logNormalFit2BfinalPredsLCB <- apply(logNormalFit2BfinalPreds, 2, function(x){quantile(x, 0.025)})
+logNormalFit2BfinalPredsUCB <- apply(logNormalFit2BfinalPreds, 2, function(x){quantile(x, 0.975)})
+
+logNormalFit2BpredMetrics <- tibble(
+  MAE_HWRF_fit = mean(abs(StormdataTrain3$HWRF - StormdataTrain3$VMAX)),
+  MAE_fit = mean(abs(logNormalFit2BfinalFitMean - StormdataTrain3$VMAX)),
+  COV_fit = mean(logNormalFit2BfinalFitLCB < StormdataTrain7$VMAX & StormdataTrain7$VMAX < logNormalFit2BfinalFitUCB),
+  MAE_HWRF_pred = mean(abs(StormdataTest2$HWRF - Actual_Yvec)),
+  MAE_pred = mean(abs(logNormalFit2BfinalPreds2 - Actual_Yvec)),
+  MAD_pred = mean(abs(logNormalFit2BfinalPredsMed - Actual_Yvec)),
+  COV_pred = mean(logNormalFit2BfinalPredsLCB < Actual_Yvec & Actual_Yvec < logNormalFit2BfinalPredsUCB)
+)
+logNormalFit2BpredMetrics
+
+##### Plotting ----
+## Fit
+ppc_dens_overlay(y = Actual_Yvec, yrep = logNormalFit2BfinalPreds) +
+  labs(title = "logNormalFit2B Predict")
+
+logNormalFit2BFitDF <- bind_cols(
+  StormdataTrain3,
+  LCB = logNormalFit2BfinalFitLCB,
+  Mean = logNormalFit2BfinalFitMean,
+  Med = logNormalFit2BfinalFitMed,
+  UCB = logNormalFit2BfinalFitUCB
+) 
+
+ggplot(data = logNormalFit2BFitDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX), color = "red") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50))
+
+## Prediction
+logNormalFit2BPredDF <- bind_cols(
+  StormdataTest3,
+  LCB = logNormalFit2BfinalPredsLCB,
+  Mean = logNormalFit2BfinalPreds2,
+  Med = logNormalFit2BfinalPredsMed,
+  UCB = logNormalFit2BfinalPredsUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) #|>
+# filter(StormID %in% c(1812014))
+
+ggplot(data = logNormalFit2BPredDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX), color = "red") +
+  geom_line(aes(y = Mean)) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50))
+
+###### Quantile 2.5 ----
+logNormalFit2BLCBsims <- apply(logNormalFit2BfinalFit, 
+                               MARGIN = 1,
+                               function(x){
+                                 quantile(x, 0.025)
+                               })
+logNormalFit2BLCBpvalueVec <- logNormalFit2BLCBsims < quantile(StormdataTrain3$VMAX, 0.025)
+logNormalFit2BLCBpvalue <- sum(logNormalFit2BLCBpvalueVec)
+logNormalFit2BLCBpvalue <- round(logNormalFit2BLCBpvalue/4000, 4)
+logNormalFit2BLCBpvalue <- min(logNormalFit2BLCBpvalue, 1 - logNormalFit2BLCBpvalue)
+
+logNormalFit2B_ppcLCB <- 
+  ppc_stat(StormdataTrain3$VMAX,
+           logNormalFit2BfinalFit,
+           stat = function(y) quantile(y, 0.025), freq = FALSE) +
+  labs(title = paste0("2.5% Quantile (p-val = ", logNormalFit2BLCBpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+logNormalFit2B_ppcLCB
+
+# logNormalFit2B_ppcLCB2 <- logNormalFit2B_ppcLCB +
+#   annotate(geom = "text",
+#            x = layer_scales(logNormalFit2B_ppcLCB)$x$range$range[2],
+#            y = layer_scales(logNormalFit2B_ppcLCB)$y$range$range[2],
+#            label = paste0("p-value = ", logNormalFit2BLCBpvalue),
+#            hjust = 2, vjust = 2)
+# logNormalFit2B_ppcLCB2
+
+###### Quantile 97.5 ----
+logNormalFit2BUCBsims <- apply(logNormalFit2BfinalFit, 
+                               MARGIN = 1,
+                               function(x){
+                                 quantile(x, 0.975)
+                               })
+logNormalFit2BUCBpvalueVec <- logNormalFit2BUCBsims < quantile(StormdataTrain3$VMAX, 0.975)
+logNormalFit2BUCBpvalue <- as.numeric(sum(logNormalFit2BUCBpvalueVec))
+logNormalFit2BUCBpvalue <- round(logNormalFit2BUCBpvalue/4000, 4)
+logNormalFit2BUCBpvalue <- min(logNormalFit2BUCBpvalue, 1 - logNormalFit2BUCBpvalue)
+
+logNormalFit2B_ppcUCB <- 
+  ppc_stat(StormdataTrain3$VMAX,
+           logNormalFit2BfinalFit,
+           stat = function(y) quantile(y, 0.975), freq = FALSE) +
+  labs(title = paste0("97.5% Quantile (p-val = ", logNormalFit2BUCBpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFit2B_ppcUCB
+
+# logNormalFit2B_ppcUCB2 <- logNormalFit2B_ppcUCB +
+#   annotate(geom = "text",
+#            x = layer_scales(logNormalFit2B_ppcUCB)$x$range$range[2],
+#            y = layer_scales(logNormalFit2B_ppcUCB)$y$range$range[2],
+#            label = paste0("p-value = ", logNormalFit2BUCBpvalue),
+#            hjust = 2, vjust = 2)
+# logNormalFit2B_ppcUCB2
+
+###### Mean ----
+logNormalFit2BMEANsims <- apply(logNormalFit2BfinalFit, 
+                                MARGIN = 1,
+                                function(x){
+                                  mean(x)
+                                })
+logNormalFit2BMEANpvalueVec <- logNormalFit2BMEANsims < mean(StormdataTrain3$VMAX)
+logNormalFit2BMEANpvalue <- sum(logNormalFit2BMEANpvalueVec)
+logNormalFit2BMEANpvalue <- round(logNormalFit2BMEANpvalue/4000, 4)
+logNormalFit2BMEANpvalue <- min(logNormalFit2BMEANpvalue, 1 - logNormalFit2BMEANpvalue)
+
+logNormalFit2B_ppcMEAN <- 
+  ppc_stat(StormdataTrain3$VMAX,
+           logNormalFit2BfinalFit,
+           stat = function(y) mean(y), freq = FALSE) +
+  labs(title = paste0("Mean (p-val = ", logNormalFit2BMEANpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFit2B_ppcMEAN
+
+# logNormalFit2B_ppcMEAN2 <- logNormalFit2B_ppcMEAN +
+#   annotate(geom = "text",
+#            x = layer_scales(logNormalFit2B_ppcMEAN)$x$range$range[2],
+#            y = layer_scales(logNormalFit2B_ppcMEAN)$y$range$range[2],
+#            label = paste0("p-value = ", logNormalFit2BMEANpvalue),
+#            hjust = 2, vjust = 2)
+# logNormalFit2B_ppcMEAN2
+
+###### Med ----
+logNormalFit2BMEDsims <- apply(logNormalFit2BfinalFit, 
+                               MARGIN = 1,
+                               function(x){
+                                 quantile(x, 0.5)
+                               })
+logNormalFit2BMEDpvalueVec <- logNormalFit2BMEDsims < quantile(StormdataTrain3$VMAX, 0.5)
+logNormalFit2BMEDpvalue <- sum(logNormalFit2BMEDpvalueVec)
+logNormalFit2BMEDpvalue <- round(logNormalFit2BMEDpvalue/4000, 4)
+logNormalFit2BMEDpvalue <- min(logNormalFit2BMEDpvalue, 1 - logNormalFit2BMEDpvalue)
+
+logNormalFit2B_ppcMED <- 
+  ppc_stat(StormdataTrain3$VMAX,
+           logNormalFit2BfinalFit,
+           stat = function(y) quantile(y, 0.5), freq = FALSE) +
+  labs(title = paste0("Median (p-val = ", logNormalFit2BMEDpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFit2B_ppcMED
+
+# logNormalFit2B_ppcMED2 <- logNormalFit2B_ppcMED +
+#   annotate(geom = "text",
+#            x = layer_scales(logNormalFit2B_ppcMED)$x$range$range[2],
+#            y = layer_scales(logNormalFit2B_ppcMED)$y$range$range[2],
+#            label = paste0("p-value = ", logNormalFit2BMEDpvalue),
+#            hjust = 2, vjust = 2)
+# logNormalFit2B_ppcMED2
+
+###### SD ----
+logNormalFit2BSDsims <- apply(logNormalFit2BfinalFit, 
+                              MARGIN = 1,
+                              function(x){
+                                sd(x)
+                              })
+logNormalFit2BSDpvalueVec <- logNormalFit2BSDsims < sd(StormdataTrain3$VMAX)
+logNormalFit2BSDpvalue <- sum(logNormalFit2BSDpvalueVec)
+logNormalFit2BSDpvalue <- round(logNormalFit2BSDpvalue/4000, 4)
+logNormalFit2BSDpvalue <- min(logNormalFit2BSDpvalue, 1 - logNormalFit2BSDpvalue)
+
+logNormalFit2B_ppcSD <- 
+  ppc_stat(StormdataTrain3$VMAX,
+           logNormalFit2BfinalFit,
+           stat = function(y) sd(y), freq = FALSE) +
+  labs(title = paste0("SD (p-val = ", logNormalFit2BSDpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFit2B_ppcSD
+
+# logNormalFit2B_ppcSD2 <- logNormalFit2B_ppcSD +
+#   annotate(geom = "text",
+#            x = layer_scales(logNormalFit2B_ppcSD)$x$range$range[2],
+#            y = layer_scales(logNormalFit2B_ppcSD)$y$range$range[2],
+#            label = paste0("p-value = ", logNormalFit2BSDpvalue),
+#            hjust = 2, vjust = 2)
+# logNormalFit2B_ppcSD2
+
+###### Range ----
+logNormalFit2BRANGEsims <- apply(logNormalFit2BfinalFit, 
+                                 MARGIN = 1,
+                                 function(x){
+                                   max(x)-min(x)
+                                 })
+logNormalFit2BRANGEpvalueVec <- logNormalFit2BRANGEsims < (max(StormdataTrain3$VMAX)-min(StormdataTrain3$VMAX))
+logNormalFit2BRANGEpvalue <- sum(logNormalFit2BRANGEpvalueVec)
+logNormalFit2BRANGEpvalue <- round(logNormalFit2BRANGEpvalue/4000, 4)
+logNormalFit2BRANGEpvalue <- min(logNormalFit2BRANGEpvalue, 1 - logNormalFit2BRANGEpvalue)
+
+logNormalFit2B_ppcRANGE <- 
+  ppc_stat(StormdataTrain3$VMAX,
+           logNormalFit2BfinalFit,
+           stat = function(y) max(y)-min(y), freq = FALSE) +
+  labs(title = paste0("Range (p-val = ", logNormalFit2BRANGEpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFit2B_ppcRANGE
+
+# logNormalFit2B_ppcRANGE2 <- logNormalFit2B_ppcRANGE +
+#   annotate(geom = "text",
+#            x = layer_scales(logNormalFit2B_ppcRANGE)$x$range$range[2],
+#            y = layer_scales(logNormalFit2B_ppcRANGE)$y$range$range[2],
+#            label = paste0("p-value = ", logNormalFit2BRANGEpvalue),
+#            hjust = 2, vjust = 2)
+# logNormalFit2B_ppcRANGE2
+
+##### Combined Plot ----
+logNormalFit2B_ppcComb <- 
+  logNormalFit2B_ppcLCB +
+  logNormalFit2B_ppcMED +
+  logNormalFit2B_ppcUCB +
+  logNormalFit2B_ppcRANGE +
+  logNormalFit2B_ppcMEAN +
+  logNormalFit2B_ppcSD
+logNormalFit2B_ppcComb
+
+##### Bayes p-values ----
+logNormalFit2Bpvalues <- tibble(
+  Fit = "logNormalFit2B",
+  LCB = logNormalFit2BLCBpvalue,
+  Median = logNormalFit2BMEDpvalue,
+  UCB = logNormalFit2BUCBpvalue,
+  Range = logNormalFit2BRANGEpvalue,
+  Mean = logNormalFit2BMEANpvalue,
+  SD = logNormalFit2BSDpvalue
+)
+logNormalFit2Bpvalues
+
+rm(logNormalFit2BfinalFit)
+rm(logNormalFit2BfinalFit2)
+rm(logNormalFit2BfinalPreds)
 
 
 ## VMAX/HWRF ----
