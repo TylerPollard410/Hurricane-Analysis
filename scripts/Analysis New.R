@@ -1558,7 +1558,7 @@ linFit13 <- brm(
     HWRF +
     (1|StormID),
   data = StormdataTrain7scale, 
-  family = skew_normal(), 
+  family = gaussian(link = "log"), 
   save_pars = save_pars(all = TRUE), 
   chains = 4,
   iter = 2000,
