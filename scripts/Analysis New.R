@@ -696,7 +696,7 @@ ggplot() +
     aes(map_id = region) 
   ) + 
   geom_point(
-    data = StormdataTestFinal,
+    data = StormdataTrain3,
     aes(x = LON-360, y = LAT, 
         color = StormElapsedTime)
   ) +
@@ -2801,6 +2801,74 @@ prior_summary(gammaFit4)
 posterior_summary(gammaFit4)
 gammaFit4
 
+gammaFit4mgcv <- gam(
+  formula = VMAX ~
+    #Year +
+    #Month +
+    #basin + 
+    t2(LON, LAT, StormElapsedTime, d = c(2,1), bs = c("tp", "cr")) +
+    MINSLP +
+    SHR_MAG +
+    STM_SPD +
+    SST +
+    RHLO +
+    CAPE1 +
+    CAPE3 +
+    SHTFL2 +
+    TCOND7002 +
+    INST2 +
+    CP1 +
+    TCONDSYM2 +
+    COUPLSYM3 +
+    HWFI +
+    VMAX_OP_T0 +
+    HWRF +
+    s(StormID, bs = "re"),
+  data = StormdataTrain7, 
+  family = Gamma(link = "log"), 
+  method = "REML", 
+)
+summary(gammaFit4mgcv)
+vis.gam(gammaFit4mgcv, 
+        view = c("LON", "LAT"),
+        cond = StormdataTrain7 |> 
+          select( 
+          MINSLP,
+            SHR_MAG,
+            STM_SPD,
+            SST,
+            RHLO,
+            CAPE1,
+            CAPE3,
+            SHTFL2,
+            TCOND7002,
+            INST2,
+            CP1,
+            TCONDSYM2,
+            COUPLSYM3,
+            HWFI,
+            VMAX_OP_T0,
+            HWRF) |> 
+          summarise(across(everything(),median)),
+        type = "response",
+        plot.type = "persp")
+gammaFit4mgcvPred <- predict.gam(gammaFit4mgcv, 
+                                 type = "terms",
+                                 se.fit = TRUE, exclude = "StormID")
+plot.gam(gammaFit4mgcv)
+vis.gam(gammaFit4mgcv, 
+        view = c("LON", "LAT"), 
+        cond = list(
+          StormElapsedTime = seq(min(StormdataTrain7$StormElapsedTime),
+                                 max(StormdataTrain7$StormElapsedTime),
+                                 along.with = 9)),
+        plot.type = "contour",
+        type = "link",
+        n.grid = 10)
+vis.gam(gammaFit4mgcvPred, plot.type = "contour", type = "response")
+
+plot(gammaFit4mgcv)
+
 print(gammaFit4, digits = 4)
 plot(gammaFit4)
 pp_check(gammaFit4, ndraws = 100)
@@ -2832,15 +2900,33 @@ bayes_factor(gammaFit4, propFit1)
 bayes_factor(gammaFit4, logPropFit1)
 loo(gammaFit4, gammaFit3)
 
-gammaFit4smooths <- conditional_smooths(gammaFit4)
-plot(gammaFit4smooths, stype = "raster")
+gammaFit4inits <- list(StormElapsedTime = seq(min(StormdataTrain7$StormElapsedTime),
+                                              max(StormdataTrain7$StormElapsedTime),
+                                              length.out = 9))
+gammaFit4smooths <- conditional_smooths(gammaFit4,
+                                        int_conditions = gammaFit4inits)
+gammaFit4smoothsPlot <- plot(gammaFit4smooths, 
+                             stype = "raster", 
+                             theme = theme(
+                               legend.position = "bottom"
+                             )
+)
+rayshader::plot_gg(gammaFit4smoothsPlot$`mu: t2(LON,LAT,StormElapsedTime,d=c(2,1),bs=c("tp","cr"))`, 
+                   preview = TRUE,
+                   phi = 45)
+
+plot(gammaFit4smooths, stype = "contour", 
+     theme = theme(legend.position = "bottom"))
 gammaFit4effects <- conditional_effects(gammaFit4, 
                                         method = "posterior_predict",
                                         robust = FALSE,
                                         re_formula = NULL)
 #spaghetti = TRUE,
-gammaFit4effects <- conditional_effects(gammaFit4)
-plot(gammaFit4effects, points = TRUE, ask = TRUE)
+gammaFit4effects <- conditional_effects(gammaFit4, int_conditions = gammaFit4inits)
+plot(gammaFit4effects, points = TRUE, ask = FALSE)
+
+ggplot(data = gammaFit4smooths$`mu: t2(LON,LAT,StormElapsedTime,d=c(2,1),bs=c("tp","cr"))`) +
+  geom_contour_filled(aes(x = LON, y = LAT, z = estimate))
 
 #### Prediction ----
 ## Fitted
@@ -2910,7 +2996,7 @@ gammaFit5 <- brm(
   seed = 52,
   warmup = 1000
 )
-save(gammaFit5, file = "_data/gammaFit5.RData")
+save(gammaFit5, file = "~/Desktop/gammaFit5.RData")
 prior_summary(gammaFit5)
 round(posterior_summary(gammaFit5, probs = c(0.025, 0.975)))
 gammaFit5
@@ -4568,9 +4654,9 @@ loo(propLinFit2C, gammaFit3)
 propLinFit2Csmooths <- conditional_smooths(propLinFit2C)
 plot(propLinFit2Csmooths, stype = "raster", ask = FALSE)
 propLinFit2Ceffects <- conditional_effects(propLinFit2C, 
-                                          method = "posterior_predict",
-                                          robust = FALSE,
-                                          re_formula = NULL)
+                                           method = "posterior_predict",
+                                           robust = FALSE,
+                                           re_formula = NULL)
 propLinFit2Ceffects <- conditional_effects(propLinFit2C)
 plot(propLinFit2Ceffects, points = TRUE, ask = FALSE)
 
@@ -4586,8 +4672,8 @@ propLinFit2CfinalFitUCB <- apply(propLinFit2CfinalFit, 2, function(x){quantile(x
 
 ## Prediction on new data
 propLinFit2CfinalPreds <- posterior_predict(propLinFit2C, 
-                                           newdata = StormdataTestFinalscale2,
-                                           allow_new_levels = TRUE)
+                                            newdata = StormdataTestFinalscale2,
+                                            allow_new_levels = TRUE)
 propLinFit2CfinalPreds <- t(t(propLinFit2CfinalPreds)*StormdataTest3$HWRF)
 propLinFit2CfinalPreds2 <- colMeans(propLinFit2CfinalPreds)
 propLinFit2CfinalPredsMed <- apply(propLinFit2CfinalPreds, 2, function(x){quantile(x, 0.5)})
