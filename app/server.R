@@ -53,6 +53,7 @@ StormdataTrain3 <- StormdataTrain2 |>
     ) |>
     ungroup() |>
     mutate(
+        "log(VMAX)" = log(VMAX),
         "VMAX/HWRF" = VMAX/HWRF,
         "log(VMAX/HWRF)" = log(VMAX/HWRF)
     )
@@ -248,7 +249,7 @@ shinyServer(function(input, output, session){
                 pickerInput(
                     inputId = "scatter_x",
                     label = "Select x variable",
-                    choices = c("Date", num_columns),
+                    choices = c(num_columns,"Date"),
                     selected = NULL
                 ),
                 radioGroupButtons(
