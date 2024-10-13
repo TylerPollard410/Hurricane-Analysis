@@ -14,4 +14,5 @@ deployApp(appDir = "app",
           appName = "Hurricane_EDA", 
           appTitle = "Hurricane EDA", 
           server = "shinyapps.io",
-          account = "tylerpollard410")
+          account = "tylerpollard410", 
+          forceUpdate = TRUE)
