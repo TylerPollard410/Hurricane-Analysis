@@ -7,15 +7,74 @@
 # Read in data ----
 ## Clean data ----
 Stormdata_raw <- fread("_data/E2_data.csv")
-Stormdata <- Stormdata_raw |>
+## Clean data ----
+Stormdata1 <- Stormdata_raw |>
     mutate(
+        Obs = 1:nrow(Stormdata_raw),
         StormID = factor(StormID),
         basin = factor(basin),
-        Date = as_datetime(Date, tz = "UTC")
-        #Date = as_datetime(format(Date, "%Y-%m-%d %H:%M:%S"),  tz = "UTC")
+        Date = as_datetime(Date, tz = "UTC"),
+        Year = year(Date),
+        Month = month(Date, label = TRUE),
+        Day = yday(Date),
+        LON2 = LON - 360,
+        DataType = ifelse(is.na(VMAX), "Test", "Train")
+    ) |>
+    group_by(StormID) |>
+    mutate(
+        StormElapsedTime = as.numeric(difftime(Date, min(Date), units = "hours"))
+    ) |>
+    ungroup() |>
+    select(
+        DataType,
+        StormID,
+        Date,
+        Year,
+        Month,
+        Day,
+        basin,
+        StormElapsedTime,
+        LAT,
+        LON,
+        LON2,
+        everything(),
+        -lead_time
     )
-#as.POSIXct(Stormdata$Date[1])
-# str(Stormdata)
+
+# Create Date vars
+# dataYears <- year(Stormdata$Date)
+# dataMonths <- month(Stormdata$Date, label = TRUE)
+# dataDays <- day(Stormdata$Date)
+# dataYearDay <- yday(Stormdata$Date)
+
+### Land Indicator ----
+pts <- st_as_sf(Stormdata1, # |> select(LON, LAT), 
+                coords = c("LON2", "LAT"),
+                crs = 4326
+)
+land_pts <- !is.na(as.numeric(st_intersects(pts, world)))
+
+Stormdata <- Stormdata1 |>
+    mutate(
+        Land = factor(land_pts, 
+                      labels = c("Water", "Land"))
+    ) |>
+    select(
+        DataType,
+        StormID,
+        Date,
+        Year,
+        Month,
+        Day,
+        basin,
+        StormElapsedTime,
+        LAT,
+        LON,
+        Land,
+        everything(),
+        -LON2,
+        -Obs
+    )
 
 ## Create training and test data sets ----
 StormdataTrain <- Stormdata |> filter(complete.cases(VMAX))
@@ -23,39 +82,39 @@ StormdataTest <- Stormdata |> filter(!complete.cases(VMAX))
 
 ## Transform data ----
 # Remove not varying 
-StormdataTrain2 <- StormdataTrain |>
-    select(-lead_time)
+# StormdataTrain2 <- StormdataTrain |>
+#     select(-lead_time)
+# 
+# # Create Date vars 
+# dataYears <- year(StormdataTrain2$Date)
+# dataMonths <- month(StormdataTrain2$Date, label = TRUE)
+# dataDays <- day(StormdataTrain2$Date)
+# dataYearDays <- yday(StormdataTrain2$Date)
 
-# Create Date vars 
-dataYears <- year(StormdataTrain2$Date)
-dataMonths <- month(StormdataTrain2$Date, label = TRUE)
-dataDays <- day(StormdataTrain2$Date)
-dataYearDays <- yday(StormdataTrain2$Date)
-
-StormdataTrain3 <- StormdataTrain2 |>
+StormdataTrain3 <- StormdataTrain |>
+    # mutate(
+    #     Year = factor(dataYears, ordered = TRUE),
+    #     Month = dataMonths,
+    #     Day = dataYearDays
+    # ) |>
+    # group_by(StormID) |>
+    # mutate(
+    #     StormElapsedTime = as.numeric(difftime(Date, min(Date), units = "hours"))
+    # ) |>
+    # select(
+    #     StormID,
+    #     Date,
+    #     Year,
+    #     Month,
+    #     Day,
+    #     StormElapsedTime,
+    #     everything()
+    # ) |>
+    # ungroup() |>
     mutate(
-        Year = factor(dataYears, ordered = TRUE),
-        Month = dataMonths,
-        Day = dataYearDays
-    ) |>
-    group_by(StormID) |>
-    mutate(
-        StormElapsedTime = as.numeric(difftime(Date, min(Date), units = "hours"))
-    ) |>
-    select(
-        StormID,
-        Date,
-        Year,
-        Month,
-        Day,
-        StormElapsedTime,
-        everything()
-    ) |>
-    ungroup() |>
-    mutate(
-        "log(VMAX)" = log(VMAX),
+        #"log(VMAX)" = log(VMAX),
         "VMAX/HWRF" = VMAX/HWRF,
-        "log(VMAX/HWRF)" = log(VMAX/HWRF)
+        #"log(VMAX/HWRF)" = log(VMAX/HWRF)
     )
 
 # Adjust Time for table
@@ -70,15 +129,58 @@ fact_columns <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is
 num_columns <- colnames(StormdataTrain3)[sapply(StormdataTrain3, function(x){is.numeric(x)})]
 
 # Scatter Plot
-PlotScatter <- function(x, y = "VMAX", transX = "None", transY = "None", color = NULL, fit_line = FALSE, facet = NULL){
-    plotData <- StormdataTrain3 |>
-        rowwise() |>
-        mutate(
-            !!sym(x) := ifelse(transX == "None", !!sym(x),
-                               ifelse(transX == "Log", log(!!sym(x)), scale(!!sym(x)))),
-            !!sym(y) := ifelse(transY == "None", !!sym(y),
-                               ifelse(transX == "Log", log(!!sym(y)), scale(!!sym(y))))
-        ) 
+PlotScatter <- function(x, y = "VMAX", transX = "None", scaleX = FALSE, transY = "None", scaleY = FALSE, color = NULL, fit_line = FALSE, facet = NULL){
+    # plotData <- StormdataTrain3 |>
+    #     rowwise() |>
+    #     mutate(
+    #         !!sym(x) := ifelse(transX == "None", !!sym(x),
+    #                            ifelse(transX == "Log", log(!!sym(x)), scale(!!sym(x)))),
+    #         !!sym(y) := ifelse(transY == "None", !!sym(y),
+    #                            ifelse(transX == "Log", log(!!sym(y)), scale(!!sym(y))))
+    #     ) 
+    plotData <- StormdataTrain3
+    
+    # Transform X
+    if(transX == "Log"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){log(x)})
+            )
+    }else if(transX == "Arcsinh"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){log(x + sqrt(x^2 + 1))})
+            )
+    }
+    
+    # Scale X
+    if(scaleX){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){scale(x)})
+            )
+    }
+    
+    # Transform Y
+    if(transY == "Log"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(y), function(x){log(x)})
+            )
+    }else if(transY == "Arcsinh"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(y), function(x){log(x + sqrt(x^2 + 1))})
+            )
+    }
+    
+    # Scale Y
+    if(scaleY){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(y), function(x){scale(x)})
+            )
+    }
     
     # Color
     if(is.null(color)){
@@ -115,6 +217,78 @@ PlotScatter <- function(x, y = "VMAX", transX = "None", transY = "None", color =
         g_facet <- g_fit_line
     }else{
         g_facet <- g_fit_line +
+            facet_wrap(vars(!!sym(facet)))
+    }
+    
+    # Date scale
+    if(x == "Date"){
+        g_date <- g_facet +
+            scale_x_datetime(date_breaks = "month", 
+                             date_minor_breaks = "day", 
+                             date_labels = "%b-%Y") +
+            theme_bw() +
+            theme(
+                axis.text.x = element_text(angle = 90)
+            )
+    }else{
+        g_date <- g_facet
+    }
+    
+    # Final Plot
+    finalPlot <- g_date
+    
+    finalPlot
+}
+
+# Scatter Plot
+PlotHistogram <- function(x = "VMAX", transX = "None", scaleX = FALSE, density = FALSE, facet = NULL){
+    plotData <- StormdataTrain3
+    
+    # Transform X
+    if(transX == "Log"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){log(x)})
+            )
+    }else if(transX == "Arcsinh"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){log(x + sqrt(x^2 + 1))})
+            )
+    }
+    
+    # Scale X
+    if(scaleX){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){scale(x)})
+            )
+    }
+    
+    # Histogram
+    g_hist <- ggplot(data = plotData) +
+        geom_histogram(
+            aes(x = !!sym(x), after_stat(density)),
+            color = "#99c7c7", fill = "#bcdcdc") +
+        theme_bw()
+    
+    # Density
+    if(density){
+        g_density <- g_hist +
+            geom_density(
+                aes(x = !!sym(x)),
+                color = "#007C7C", 
+                linewidth = 1
+            )
+    }else{
+        g_density <- g_hist
+    }
+    
+    # Facet Plot
+    if(is.null(facet)){
+        g_facet <- g_density
+    }else{
+        g_facet <- g_density +
             facet_wrap(vars(!!sym(facet)))
     }
     
@@ -253,17 +427,23 @@ shinyServer(function(input, output, session){
                     selected = NULL
                 ),
                 radioGroupButtons(
-                    inputId = "transform_x",
+                    inputId = "scatter_transform_x",
                     label = "Transform X",
                     choices = c("None",
                                 "Log", 
-                                "Scale"),
+                                "Arcsinh"),
                     individual = TRUE,
                     checkIcon = list(
                         yes = tags$i(class = "fa fa-check-square", 
                                      style = "color: steelblue"),
                         no = tags$i(class = "fa fa-circle-o", 
                                     style = "color: steelblue"))
+                ),
+                materialSwitch(
+                    inputId = "scatter_scale_x",
+                    label = "Scale X", 
+                    value = FALSE, 
+                    status = "info"
                 ),
                 hr(),
                 pickerInput(
@@ -273,17 +453,23 @@ shinyServer(function(input, output, session){
                     selected = "VMAX"
                 ),
                 radioGroupButtons(
-                    inputId = "transform_y",
+                    inputId = "scatter_transform_y",
                     label = "Transform Y",
                     choices = c("None",
                                 "Log", 
-                                "Scale"),
+                                "Arcsinh"),
                     individual = TRUE,
                     checkIcon = list(
                         yes = tags$i(class = "fa fa-check-square", 
                                      style = "color: steelblue"),
                         no = tags$i(class = "fa fa-circle-o", 
                                     style = "color: steelblue"))
+                ),
+                materialSwitch(
+                    inputId = "scatter_scale_y",
+                    label = "Scale Y", 
+                    value = FALSE, 
+                    status = "info"
                 ),
                 hr(),
                 materialSwitch(
@@ -331,6 +517,85 @@ shinyServer(function(input, output, session){
                 materialSwitch(
                     inputId = "scatter_fit_line",
                     label = "Fit line?", 
+                    value = FALSE, 
+                    status = "info"
+                )
+            )
+        }
+        ## Histogram Plot ----
+        else if(input$plot_type == "histogram_plot"){
+            tagList(
+                pickerInput(
+                    inputId = "histogram_x",
+                    label = "Select x variable",
+                    choices = c(num_columns,"Date"),
+                    selected = "VMAX"
+                ),
+                radioGroupButtons(
+                    inputId = "histogram_transform_x",
+                    label = "Transform X",
+                    choices = c("None",
+                                "Log", 
+                                "Arcsinh"),
+                    individual = TRUE,
+                    checkIcon = list(
+                        yes = tags$i(class = "fa fa-check-square", 
+                                     style = "color: steelblue"),
+                        no = tags$i(class = "fa fa-circle-o", 
+                                    style = "color: steelblue"))
+                ),
+                materialSwitch(
+                    inputId = "histogram_scale_x",
+                    label = "Scale X", 
+                    value = FALSE, 
+                    status = "info"
+                ),
+                # hr(),
+                # materialSwitch(
+                #     inputId = "histogram_color_switch",
+                #     label = "Color plot by variable?", 
+                #     value = FALSE, 
+                #     status = "info"
+                # ),
+                # conditionalPanel(condition = 'input.histogram_color_switch',
+                #                  pickerInput(
+                #                      inputId = "histogram_color",
+                #                      label = "Select color variable",
+                #                      choices = colnames(StormdataTrain3),
+                #                      selected = NULL, 
+                #                      multiple = TRUE,
+                #                      options = pickerOptions(
+                #                          maxOptions = 1, 
+                #                          virtualScroll = 600,
+                #                          dropupAuto = FALSE
+                #                      )
+                #                  )
+                # ),
+                hr(),
+                materialSwitch(
+                    inputId = "histogram_facet_switch",
+                    label = "Facet plot by variable?", 
+                    value = FALSE, 
+                    status = "info"
+                ),
+                conditionalPanel(condition = 'input.histogram_facet_switch',
+                                 pickerInput(
+                                     inputId = "histogram_facet",
+                                     label = "Select facet variable",
+                                     choices = c("basin", "Land", "StormID"),
+                                     selected = NULL, 
+                                     multiple = TRUE,
+                                     options = pickerOptions(
+                                         maxOptions = 1,
+                                         virtualScroll = 600,
+                                         dropupAuto = FALSE
+                                     )
+                                 )
+                ),
+                hr(),
+                materialSwitch(
+                    inputId = "histogram_density",
+                    label = "Overlay density?", 
                     value = FALSE, 
                     status = "info"
                 )
@@ -390,13 +655,25 @@ shinyServer(function(input, output, session){
             scatterPlot <- PlotScatter(
                 x = input$scatter_x,
                 y = input$scatter_y,
-                transX = input$transform_x,
-                transY = input$transform_y,
+                transX = input$scatter_transform_x,
+                scaleX = input$scatter_scale_x,
+                transY = input$scatter_transform_y,
+                scaleY = input$scatter_scale_y,
                 color = if(input$scatter_color_switch){input$scatter_color},
                 fit_line = input$scatter_fit_line,
                 facet = if(input$scatter_facet_switch){input$scatter_facet}
             )
             plotOut <- scatterPlot
+        }else if(input$plot_type == "histogram_plot"){
+            histogramPlot <- PlotHistogram(
+                x = input$histogram_x,
+                transX = input$histogram_transform_x,
+                scaleX = input$histogram_scale_x,
+                #color = if(input$histogram_color_switch){input$histogram_color},
+                density = input$histogram_density,
+                facet = if(input$histogram_facet_switch){input$histogram_facet}
+            )
+            plotOut <- histogramPlot
         }else if(input$plot_type == "map_plot"){
             mapPlot <- PlotMap(
                 color = if(input$map_color_switch){input$map_color}#,

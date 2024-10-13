@@ -2,6 +2,7 @@
 library(knitr)
 library(data.table)
 library(MASS)
+library(bestNormalize)
 library(rjags)
 library(plyr)
 library(stringr)
@@ -296,11 +297,21 @@ StormdataTrain4 <- StormdataTrain |>
     #StormID = droplevels(StormID),
     Year = factor(Year, ordered = FALSE),
     Month = factor(Month, ordered = FALSE),
+    LON2 = LON,
+    LAT2 = LAT,
+    StormElapsedTime2 = StormElapsedTime,
+    logMINSLP = log(MINSLP),
+    logSHR_MAG = log(SHR_MAG),
+    logSTM_SPD = log(STM_SPD),
+    logSST = log(SST + 1 - min(SST)),
+    logRHLO = log(RHLO),
     logCAPE1 = log(CAPE1),
     logCAPE3 = log(CAPE3),
+    logSHTFL2 = log(SHTFL2 + 1 - min(SHTFL2)),
     logTCOND7002 = log(TCOND7002 + 1 - min(TCOND7002)),
     logINST2 = log(INST2 + 1 - min(INST2)),
     logCP1 = log(CP1 + 1 - min(CP1)),
+    logTCONDSYM2 = log(TCONDSYM2),
     logCOUPLSYM3 = log(COUPLSYM3 + 1 - min(COUPLSYM3)),
     logHWFI = log(HWFI),
     logVMAX_OP_T0 = log(VMAX_OP_T0),
@@ -308,22 +319,320 @@ StormdataTrain4 <- StormdataTrain |>
   ) |>
   mutate(
     across(where(is.numeric) & !c(VMAX, 
-                                  HWRF, logHWRF,
-                                  StormElapsedTime,
-                                  LAT, LON),
-           function(x){scale(x)}),
-    logCAPE1scale = scale(logHWRF, center = TRUE, scale = TRUE),
-    logCAPE3scale = scale(logHWRF, center = TRUE, scale = TRUE),
-    logTCOND7002scale = scale(logHWRF, center = TRUE, scale = TRUE),
-    logINST2scale = scale(logHWRF, center = TRUE, scale = TRUE),
-    logCP1scale = scale(logHWRF, center = TRUE, scale = TRUE),
-    logCOUPLSYM3scale = scale(logHWRF, center = TRUE, scale = TRUE),
-    logHWFIscale = scale(logHWRF, center = TRUE, scale = TRUE),
-    logVMAX_OP_T0scale = scale(logHWRF, center = TRUE, scale = TRUE),
+                                  # HWRF, 
+                                  logHWRF,
+                                  StormElapsedTime2,
+                                  LAT2, LON2
+                                  ),
+    function(x){scale(x)}),
+    # logMINSLPscale = scale(logMINSLP, center = TRUE, scale = TRUE),
+    # logSHR_MAGscale = scale(logSHR_MAG, center = TRUE, scale = TRUE),
+    # logSTM_SPDscale = scale(logSTM_SPD, center = TRUE, scale = TRUE),
+    # logSSTscale = scale(logSST, center = TRUE, scale = TRUE),
+    # logRHLOscale = scale(logRHLO, center = TRUE, scale = TRUE),
+    # logCAPE1scale = scale(logCAPE1, center = TRUE, scale = TRUE),
+    # logCAPE3scale = scale(logCAPE3, center = TRUE, scale = TRUE),
+    # logSHTFL2scale = scale(logSHTFL2, center = TRUE, scale = TRUE),
+    # logTCOND7002scale = scale(logTCOND7002, center = TRUE, scale = TRUE),
+    # logINST2scale = scale(logINST2, center = TRUE, scale = TRUE),
+    # logCP1scale = scale(logCP1, center = TRUE, scale = TRUE),
+    # logCOUPLSYM3scale = scale(logCOUPLSYM3, center = TRUE, scale = TRUE),
+    # logHWFIscale = scale(logHWFI, center = TRUE, scale = TRUE),
+    # logVMAX_OP_T0scale = scale(logVMAX_OP_T0, center = TRUE, scale = TRUE),
     logHWRFcenter = scale(logHWRF, center = TRUE, scale = FALSE),
-    logHWRFscale = scale(logHWRF, center = TRUE, scale = TRUE)
+    logHWRFscale = scale(logHWRF, center = TRUE, scale = TRUE),
+    logHWRF = scale(logHWRF)
   )
 str(StormdataTrain4)
+
+#### Train 4 Unscale ----
+StormdataTrain4unscale <- StormdataTrain |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    logMINSLP = log(MINSLP),
+    logSHR_MAG = log(SHR_MAG),
+    logSTM_SPD = log(STM_SPD),
+    logSST = log(SST + 1 - min(SST)),
+    logRHLO = log(RHLO),
+    logCAPE1 = log(CAPE1),
+    logCAPE3 = log(CAPE3),
+    logSHTFL2 = log(SHTFL2 + 1 - min(SHTFL2)),
+    logTCOND7002 = log(TCOND7002 + 1 - min(TCOND7002)),
+    logINST2 = log(INST2 + 1 - min(INST2)),
+    logCP1 = log(CP1 + 1 - min(CP1)),
+    logTCONDSYM2 = log(TCONDSYM2),
+    logCOUPLSYM3 = log(COUPLSYM3 + 1 - min(COUPLSYM3)),
+    logHWFI = log(HWFI),
+    logVMAX_OP_T0 = log(VMAX_OP_T0),
+    logHWRF = log(HWRF)
+  )
+str(StormdataTrain4unscale)
+
+#### Train 5 ----
+StormdataTrain5 <- StormdataTrain |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    LON2 = LON,
+    LAT2 = LAT,
+    StormElapsedTime2 = StormElapsedTime,
+    arcsinhMINSLP = log(MINSLP + sqrt(MINSLP^2 + 1)),
+    arcsinhSHR_MAG = log(SHR_MAG + sqrt(SHR_MAG^2 + 1)),
+    arcsinhSTM_SPD = log(STM_SPD + sqrt(STM_SPD^2 + 1)),
+    arcsinhSST = log(SST + sqrt(SST^2 + 1)),
+    arcsinhRHLO = log(RHLO + sqrt(RHLO^2 + 1)),
+    arcsinhCAPE1 = log(CAPE1 + sqrt(CAPE1^2 + 1)),
+    arcsinhCAPE3 = log(CAPE3 + sqrt(CAPE3^2 + 1)),
+    arcsinhSHTFL2 = log(SHTFL2 + sqrt(SHTFL2^2 + 1)),
+    arcsinhTCOND7002 = log(TCOND7002 + sqrt(TCOND7002^2 + 1)),
+    arcsinhINST2 = log(INST2 + sqrt(INST2^2 + 1)),
+    arcsinhCP1 = log(CP1 + sqrt(CP1^2 + 1)),
+    arcsinhTCONDSYM2 = log(TCONDSYM2 + sqrt(TCONDSYM2^2 + 1)),
+    arcsinhCOUPLSYM3 = log(COUPLSYM3 + sqrt(COUPLSYM3^2 + 1)),
+    arcsinhHWFI = log(HWFI + sqrt(HWFI^2 + 1)),
+    arcsinhVMAX_OP_T0 = log(VMAX_OP_T0 + sqrt(VMAX_OP_T0^2 + 1)),
+    arcsinhHWRF = log(HWRF + sqrt(HWRF^2 + 1))
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime2, LAT2, LON2
+    ),
+    function(x){scale(x)})
+  )
+str(StormdataTrain5)
+
+#### Train 5 Unscale ----
+StormdataTrain5unscale <- StormdataTrain |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    arcsinhMINSLP = log(MINSLP + sqrt(MINSLP^2 + 1)),
+    arcsinhSHR_MAG = log(SHR_MAG + sqrt(SHR_MAG^2 + 1)),
+    arcsinhSTM_SPD = log(STM_SPD + sqrt(STM_SPD^2 + 1)),
+    arcsinhSST = log(SST + sqrt(SST^2 + 1)),
+    arcsinhRHLO = log(RHLO + sqrt(RHLO^2 + 1)),
+    arcsinhCAPE1 = log(CAPE1 + sqrt(CAPE1^2 + 1)),
+    arcsinhCAPE3 = log(CAPE3 + sqrt(CAPE3^2 + 1)),
+    arcsinhSHTFL2 = log(SHTFL2 + sqrt(SHTFL2^2 + 1)),
+    arcsinhTCOND7002 = log(TCOND7002 + sqrt(TCOND7002^2 + 1)),
+    arcsinhINST2 = log(INST2 + sqrt(INST2^2 + 1)),
+    arcsinhCP1 = log(CP1 + sqrt(CP1^2 + 1)),
+    arcsinhTCONDSYM2 = log(TCONDSYM2 + sqrt(TCONDSYM2^2 + 1)),
+    arcsinhCOUPLSYM3 = log(COUPLSYM3 + sqrt(COUPLSYM3^2 + 1)),
+    arcsinhHWFI = log(HWFI + sqrt(HWFI^2 + 1)),
+    arcsinhVMAX_OP_T0 = log(VMAX_OP_T0 + sqrt(VMAX_OP_T0^2 + 1)),
+    arcsinhHWRF = log(HWRF + sqrt(HWRF^2 + 1))
+  )
+str(StormdataTrain5unscale)
+
+#### Train 6 ----
+StormdataTrain6 <- StormdataTrain |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    LON2 = LON,
+    LAT2 = LAT,
+    StormElapsedTime2 = StormElapsedTime,
+    arcsinhLON = log(LON + sqrt(LON^2 + 1)),
+    arcsinhLAT = log(LAT + sqrt(LAT^2 + 1)),
+    arcsinhStormElapsedTime = log(StormElapsedTime + sqrt(StormElapsedTime^2 + 1)),
+    arcsinhMINSLP = log(MINSLP + sqrt(MINSLP^2 + 1)),
+    arcsinhSHR_MAG = log(SHR_MAG + sqrt(SHR_MAG^2 + 1)),
+    arcsinhSTM_SPD = log(STM_SPD + sqrt(STM_SPD^2 + 1)),
+    arcsinhSST = log(SST + sqrt(SST^2 + 1)),
+    arcsinhRHLO = log(RHLO + sqrt(RHLO^2 + 1)),
+    arcsinhCAPE1 = log(CAPE1 + sqrt(CAPE1^2 + 1)),
+    arcsinhCAPE3 = log(CAPE3 + sqrt(CAPE3^2 + 1)),
+    arcsinhSHTFL2 = log(SHTFL2 + sqrt(SHTFL2^2 + 1)),
+    arcsinhTCOND7002 = log(TCOND7002 + sqrt(TCOND7002^2 + 1)),
+    arcsinhINST2 = log(INST2 + sqrt(INST2^2 + 1)),
+    arcsinhCP1 = log(CP1 + sqrt(CP1^2 + 1)),
+    arcsinhTCONDSYM2 = log(TCONDSYM2 + sqrt(TCONDSYM2^2 + 1)),
+    arcsinhCOUPLSYM3 = log(COUPLSYM3 + sqrt(COUPLSYM3^2 + 1)),
+    arcsinhHWFI = log(HWFI + sqrt(HWFI^2 + 1)),
+    arcsinhVMAX_OP_T0 = log(VMAX_OP_T0 + sqrt(VMAX_OP_T0^2 + 1)),
+    arcsinhHWRF = log(HWRF + sqrt(HWRF^2 + 1))
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime2, LAT2, LON2
+    ),
+    function(x){scale(x)})
+  )
+str(StormdataTrain6)
+
+#### Train 6 Unscale ----
+StormdataTrain5unscale <- StormdataTrain |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    arcsinhMINSLP = log(MINSLP + sqrt(MINSLP^2 + 1)),
+    arcsinhSHR_MAG = log(SHR_MAG + sqrt(SHR_MAG^2 + 1)),
+    arcsinhSTM_SPD = log(STM_SPD + sqrt(STM_SPD^2 + 1)),
+    arcsinhSST = log(SST + sqrt(SST^2 + 1)),
+    arcsinhRHLO = log(RHLO + sqrt(RHLO^2 + 1)),
+    arcsinhCAPE1 = log(CAPE1 + sqrt(CAPE1^2 + 1)),
+    arcsinhCAPE3 = log(CAPE3 + sqrt(CAPE3^2 + 1)),
+    arcsinhSHTFL2 = log(SHTFL2 + sqrt(SHTFL2^2 + 1)),
+    arcsinhTCOND7002 = log(TCOND7002 + sqrt(TCOND7002^2 + 1)),
+    arcsinhINST2 = log(INST2 + sqrt(INST2^2 + 1)),
+    arcsinhCP1 = log(CP1 + sqrt(CP1^2 + 1)),
+    arcsinhTCONDSYM2 = log(TCONDSYM2 + sqrt(TCONDSYM2^2 + 1)),
+    arcsinhCOUPLSYM3 = log(COUPLSYM3 + sqrt(COUPLSYM3^2 + 1)),
+    arcsinhHWFI = log(HWFI + sqrt(HWFI^2 + 1)),
+    arcsinhVMAX_OP_T0 = log(VMAX_OP_T0 + sqrt(VMAX_OP_T0^2 + 1)),
+    arcsinhHWRF = log(HWRF + sqrt(HWRF^2 + 1))
+  )
+str(StormdataTrain5unscale)
 
 ## Test ----
 StormdataTest <- Stormdata |> 
@@ -522,57 +831,280 @@ StormdataTest4 <- StormdataTest |>
     #StormID = droplevels(StormID),
     Year = factor(Year, ordered = FALSE),
     Month = factor(Month, ordered = FALSE),
+    LON2 = LON,
+    LAT2 = LAT,
+    StormElapsedTime2 = StormElapsedTime,
+    logMINSLP = log(MINSLP),
+    logSHR_MAG = log(SHR_MAG),
+    logSTM_SPD = log(STM_SPD),
+    #logSST = log(SST + 1 - min(StormdataTrain4$SST)),
+    logRHLO = log(RHLO),
     logCAPE1 = log(CAPE1),
     logCAPE3 = log(CAPE3),
-    logTCOND7002 = log(TCOND7002),
-    logINST2 = log(INST2),
-    logCP1 = log(CP1),
-    logCOUPLSYM3 = log(COUPLSYM3),
+    logSHTFL2 = log(SHTFL2 + 1 - min(StormdataTrain4$SHTFL2)),
+    logTCOND7002 = log(TCOND7002 + 1 - min(StormdataTrain4$TCOND7002)),
+    #logINST2 = log(INST2 + 1 - min(StormdataTrain4$INST2)),
+    logCP1 = log(CP1 + 1 - min(StormdataTrain4$CP1)),
+    logTCONDSYM2 = log(TCONDSYM2),
+    #logCOUPLSYM3 = log(COUPLSYM3 + 1 - min(StormdataTrain4$COUPLSYM3)),
     logHWFI = log(HWFI),
     logVMAX_OP_T0 = log(VMAX_OP_T0),
     logHWRF = log(HWRF)
   ) |>
   mutate(
     across(where(is.numeric) & !c(VMAX, 
-                                  HWRF, logHWRF,
-                                  StormElapsedTime,
-                                  LAT, LON),
-           function(x){scale(x,
-                             center = attr(StormdataTrain4 |> pull(x), "scaled:center"),
-                             scale = attr(StormdataTrain4 |> pull(x), "scaled:scale"))
-           }),
-    logCAPE1scale = scale(logCAPE1,
-                          center = attr(StormdataTrain4 |> pull(logCAPE1scale), "scaled:center"),
-                          scale = attr(StormdataTrain4 |> pull(logCAPE1scale), "scaled:scale")),
-    logCAPE3scale = scale(logCAPE3,
-                          center = attr(StormdataTrain4 |> pull(logCAPE3scale), "scaled:center"),
-                          scale = attr(StormdataTrain4 |> pull(logCAPE3scale), "scaled:scale")),
-    logTCOND7002scale = scale(logTCOND7002,
-                              center = attr(StormdataTrain4 |> pull(logTCOND7002scale), "scaled:center"),
-                              scale = attr(StormdataTrain4 |> pull(logTCOND7002scale), "scaled:scale")),
-    logINST2scale = scale(logINST2,
-                          center = attr(StormdataTrain4 |> pull(logINST2scale), "scaled:center"),
-                          scale = attr(StormdataTrain4 |> pull(logINST2scale), "scaled:scale")),
-    logCP1scale = scale(logCP1,
-                        center = attr(StormdataTrain4 |> pull(logCP1scale), "scaled:center"),
-                        scale = attr(StormdataTrain4 |> pull(logCP1scale), "scaled:scale")),
-    logCOUPLSYM3scale = scale(logCOUPLSYM3,
-                              center = attr(StormdataTrain4 |> pull(logCOUPLSYM3scale), "scaled:center"),
-                              scale = attr(StormdataTrain4 |> pull(logCOUPLSYM3scale), "scaled:scale")),
-    logHWFIscale = scale(logHWFI,
-                         center = attr(StormdataTrain4 |> pull(logHWFIscale), "scaled:center"),
-                         scale = attr(StormdataTrain4 |> pull(logHWFIscale), "scaled:scale")),
-    logVMAX_OP_T0scale = scale(logVMAX_OP_T0,
-                               center = attr(StormdataTrain4 |> pull(logVMAX_OP_T0scale), "scaled:center"),
-                               scale = attr(StormdataTrain4 |> pull(logVMAX_OP_T0scale), "scaled:scale")),
-    logHWRFcenter = scale(logHWRF, 
-                          center = attr(StormdataTrain4 |> pull(logHWRFcenter), "scaled:center"),
-                          scale = FALSE),
-    logHWRFscale = scale(logHWRF, 
-                         center = attr(StormdataTrain4 |> pull(logHWRFscale), "scaled:center"),
-                         scale = attr(StormdataTrain4 |> pull(logHWRFscale), "scaled:scale"))
+                                  # HWRF, 
+                                  #logHWRF
+                                  StormElapsedTime2,
+                                  LAT2, LON2
+    ),
+    function(x){scale(x,
+                      center = attr(StormdataTrain4 |> pull(x), "scaled:center"),
+                      scale = attr(StormdataTrain4 |> pull(x), "scaled:scale"))
+    })
+    #   logMINSLPscale = scale(logMINSLP,
+    #                          center = attr(StormdataTrain4 |> pull(logMINSLPscale), "scaled:center"),
+    #                          scale = attr(StormdataTrain4 |> pull(logMINSLPscale), "scaled:scale")),
+    #   logSHR_MAGscale = scale(logSHR_MAG,
+    #                           center = attr(StormdataTrain4 |> pull(logSHR_MAGscale), "scaled:center"),
+    #                           scale = attr(StormdataTrain4 |> pull(logSHR_MAGscale), "scaled:scale")),
+    #   logSTM_SPDscale = scale(logSTM_SPD,
+    #                           center = attr(StormdataTrain4 |> pull(logSTM_SPDscale), "scaled:center"),
+    #                           scale = attr(StormdataTrain4 |> pull(logSTM_SPDscale), "scaled:scale")),
+    #   logSSTscale = scale(logSST,
+    #                       center = attr(StormdataTrain4 |> pull(logSSTscale), "scaled:center"),
+    #                       scale = attr(StormdataTrain4 |> pull(logSSTscale), "scaled:scale")),
+    #   logRHLOscale = scale(logRHLO,
+    #                        center = attr(StormdataTrain4 |> pull(logRHLOscale), "scaled:center"),
+    #                        scale = attr(StormdataTrain4 |> pull(logRHLOscale), "scaled:scale")),
+    #   logCAPE1scale = scale(logCAPE1,
+    #                         center = attr(StormdataTrain4 |> pull(logCAPE1scale), "scaled:center"),
+    #                         scale = attr(StormdataTrain4 |> pull(logCAPE1scale), "scaled:scale")),
+    #   logCAPE3scale = scale(logCAPE3,
+    #                         center = attr(StormdataTrain4 |> pull(logCAPE3scale), "scaled:center"),
+    #                         scale = attr(StormdataTrain4 |> pull(logCAPE3scale), "scaled:scale")),
+    #   logTCOND7002scale = scale(logTCOND7002,
+    #                             center = attr(StormdataTrain4 |> pull(logTCOND7002scale), "scaled:center"),
+    #                             scale = attr(StormdataTrain4 |> pull(logTCOND7002scale), "scaled:scale")),
+    #   logINST2scale = scale(logINST2,
+    #                         center = attr(StormdataTrain4 |> pull(logINST2scale), "scaled:center"),
+    #                         scale = attr(StormdataTrain4 |> pull(logINST2scale), "scaled:scale")),
+    #   logCP1scale = scale(logCP1,
+    #                       center = attr(StormdataTrain4 |> pull(logCP1scale), "scaled:center"),
+    #                       scale = attr(StormdataTrain4 |> pull(logCP1scale), "scaled:scale")),
+    #   logCOUPLSYM3scale = scale(logCOUPLSYM3,
+    #                             center = attr(StormdataTrain4 |> pull(logCOUPLSYM3scale), "scaled:center"),
+    #                             scale = attr(StormdataTrain4 |> pull(logCOUPLSYM3scale), "scaled:scale")),
+    #   logHWFIscale = scale(logHWFI,
+    #                        center = attr(StormdataTrain4 |> pull(logHWFIscale), "scaled:center"),
+    #                        scale = attr(StormdataTrain4 |> pull(logHWFIscale), "scaled:scale")),
+    #   logVMAX_OP_T0scale = scale(logVMAX_OP_T0,
+    #                              center = attr(StormdataTrain4 |> pull(logVMAX_OP_T0scale), "scaled:center"),
+    #                              scale = attr(StormdataTrain4 |> pull(logVMAX_OP_T0scale), "scaled:scale")),
+    #   logHWRFcenter = scale(logHWRF, 
+    #                         center = attr(StormdataTrain4 |> pull(logHWRFcenter), "scaled:center"),
+    #                         scale = FALSE),
+    #   logHWRFscale = scale(logHWRF, 
+    #                        center = attr(StormdataTrain4 |> pull(logHWRFscale), "scaled:center"),
+    #                        scale = attr(StormdataTrain4 |> pull(logHWRFscale), "scaled:scale"))
   )
 str(StormdataTest4)
+
+#### Test 4 ----
+StormdataTest4unscale <- StormdataTest |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    logMINSLP = log(MINSLP),
+    logSHR_MAG = log(SHR_MAG),
+    logSTM_SPD = log(STM_SPD),
+    #logSST = log(SST + 1 - min(StormdataTrain4$SST)),
+    logRHLO = log(RHLO),
+    logCAPE1 = log(CAPE1),
+    logCAPE3 = log(CAPE3),
+    logSHTFL2 = log(SHTFL2 + 1 - min(StormdataTrain4$SHTFL2)),
+    logTCOND7002 = log(TCOND7002 + 1 - min(StormdataTrain4$TCOND7002)),
+    #logINST2 = log(INST2 + 1 - min(StormdataTrain4$INST2)),
+    logCP1 = log(CP1 + 1 - min(StormdataTrain4$CP1)),
+    logTCONDSYM2 = log(TCONDSYM2),
+    #logCOUPLSYM3 = log(COUPLSYM3 + 1 - min(StormdataTrain4$COUPLSYM3)),
+    logHWFI = log(HWFI),
+    logVMAX_OP_T0 = log(VMAX_OP_T0),
+    logHWRF = log(HWRF)
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, 
+                                  # HWRF, 
+                                  #logHWRF
+                                  # StormElapsedTime,
+                                  # LAT, LON
+    )
+    )
+  )
+str(StormdataTest4unscale)
+
+#### Test 5 ----
+StormdataTest5 <- StormdataTest |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    LON2 = LON,
+    LAT2 = LAT,
+    StormElapsedTime2 = StormElapsedTime,
+    arcsinhMINSLP = log(MINSLP + sqrt(MINSLP^2 + 1)),
+    arcsinhSHR_MAG = log(SHR_MAG + sqrt(SHR_MAG^2 + 1)),
+    arcsinhSTM_SPD = log(STM_SPD + sqrt(STM_SPD^2 + 1)),
+    arcsinhSST = log(SST + sqrt(SST^2 + 1)),
+    arcsinhRHLO = log(RHLO + sqrt(RHLO^2 + 1)),
+    arcsinhCAPE1 = log(CAPE1 + sqrt(CAPE1^2 + 1)),
+    arcsinhCAPE3 = log(CAPE3 + sqrt(CAPE3^2 + 1)),
+    arcsinhSHTFL2 = log(SHTFL2 + sqrt(SHTFL2^2 + 1)),
+    arcsinhTCOND7002 = log(TCOND7002 + sqrt(TCOND7002^2 + 1)),
+    arcsinhINST2 = log(INST2 + sqrt(INST2^2 + 1)),
+    arcsinhCP1 = log(CP1 + sqrt(CP1^2 + 1)),
+    arcsinhTCONDSYM2 = log(TCONDSYM2 + sqrt(TCONDSYM2^2 + 1)),
+    arcsinhCOUPLSYM3 = log(COUPLSYM3 + sqrt(COUPLSYM3^2 + 1)),
+    arcsinhHWFI = log(HWFI + sqrt(HWFI^2 + 1)),
+    arcsinhVMAX_OP_T0 = log(VMAX_OP_T0 + sqrt(VMAX_OP_T0^2 + 1)),
+    arcsinhHWRF = log(HWRF + sqrt(HWRF^2 + 1))
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime2, LAT2, LON2
+    ),
+    function(x){scale(x,
+                      center = attr(StormdataTrain5 |> pull(x), "scaled:center"),
+                      scale = attr(StormdataTrain5 |> pull(x), "scaled:scale"))
+    })
+  )
+str(StormdataTest5)
+
+#### Test 6 ----
+StormdataTest6 <- StormdataTest |>
+  select(
+    "StormID",
+    #Date,
+    Year,
+    Month,
+    Day,
+    StormElapsedTime,
+    "basin",
+    "LAT",
+    "LON",
+    "Land",
+    "MINSLP",
+    "SHR_MAG",
+    "STM_SPD",
+    "SST",
+    "RHLO",
+    "CAPE1",
+    "CAPE3",
+    "SHTFL2",
+    "TCOND7002",
+    "INST2",
+    "CP1",
+    "TCONDSYM2",
+    "COUPLSYM3",
+    "HWFI",
+    "VMAX_OP_T0",
+    "HWRF",
+    "VMAX"
+  ) |>
+  mutate(
+    #StormID = droplevels(StormID),
+    Year = factor(Year, ordered = FALSE),
+    Month = factor(Month, ordered = FALSE),
+    LON2 = LON,
+    LAT2 = LAT,
+    StormElapsedTime2 = StormElapsedTime,
+    arcsinhLON = log(LON + sqrt(LON^2 + 1)),
+    arcsinhLAT = log(LAT + sqrt(LAT^2 + 1)),
+    arcsinhStormElapsedTime = log(StormElapsedTime + sqrt(StormElapsedTime)),
+    arcsinhMINSLP = log(MINSLP + sqrt(MINSLP^2 + 1)),
+    arcsinhSHR_MAG = log(SHR_MAG + sqrt(SHR_MAG^2 + 1)),
+    arcsinhSTM_SPD = log(STM_SPD + sqrt(STM_SPD^2 + 1)),
+    arcsinhSST = log(SST + sqrt(SST^2 + 1)),
+    arcsinhRHLO = log(RHLO + sqrt(RHLO^2 + 1)),
+    arcsinhCAPE1 = log(CAPE1 + sqrt(CAPE1^2 + 1)),
+    arcsinhCAPE3 = log(CAPE3 + sqrt(CAPE3^2 + 1)),
+    arcsinhSHTFL2 = log(SHTFL2 + sqrt(SHTFL2^2 + 1)),
+    arcsinhTCOND7002 = log(TCOND7002 + sqrt(TCOND7002^2 + 1)),
+    arcsinhINST2 = log(INST2 + sqrt(INST2^2 + 1)),
+    arcsinhCP1 = log(CP1 + sqrt(CP1^2 + 1)),
+    arcsinhTCONDSYM2 = log(TCONDSYM2 + sqrt(TCONDSYM2^2 + 1)),
+    arcsinhCOUPLSYM3 = log(COUPLSYM3 + sqrt(COUPLSYM3^2 + 1)),
+    arcsinhHWFI = log(HWFI + sqrt(HWFI^2 + 1)),
+    arcsinhVMAX_OP_T0 = log(VMAX_OP_T0 + sqrt(VMAX_OP_T0^2 + 1)),
+    arcsinhHWRF = log(HWRF + sqrt(HWRF^2 + 1))
+  ) |>
+  mutate(
+    across(where(is.numeric) & !c(VMAX, StormElapsedTime2, LAT2, LON2
+    ),
+    function(x){scale(x,
+                      center = attr(StormdataTrain6 |> pull(x), "scaled:center"),
+                      scale = attr(StormdataTrain6 |> pull(x), "scaled:scale"))
+    })
+  )
+str(StormdataTest6)
 
 ## Actual ----
 Actual_Y <- fread("_data/Actual Y.csv")
@@ -595,6 +1127,7 @@ HWRF_MAE <- mean(abs(StormComplete$VMAX - StormComplete$HWRF))
 
 # Plot VMAX ----
 ## Correlations ----
+### Normal vs Normal ----
 ggPairPlot <- ggpairs(StormdataTrain |>
                         select(
                           #"StormID",
@@ -624,9 +1157,11 @@ ggPairPlot <- ggpairs(StormdataTrain |>
                           "HWFI",
                           "VMAX_OP_T0",
                           "HWRF",
-                          "VMAX"))
+                          "VMAX")) +
+  labs(title = "Normal VMAX vs Normal Predictors")
 ggPairPlot
 
+### Log vs Normal ----
 ggPairPlotlogVMAX <- ggpairs(StormdataTrain |>
                                select(
                                  #"StormID",
@@ -656,10 +1191,49 @@ ggPairPlotlogVMAX <- ggpairs(StormdataTrain |>
                                  "HWFI",
                                  "VMAX_OP_T0",
                                  "HWRF",
-                                 "VMAX"))
+                                 "VMAX") |>
+                               mutate(
+                                 VMAX = log(VMAX)
+                               )) +
+  labs(title = "Log VMAX vs Normal Predictors")
 ggPairPlotlogVMAX
 
-ggPairPlotlogBoth <- ggpairs(StormdataTrain |>
+### Normal vs Log ----
+ggPairPlotlogPreds <- ggpairs(StormdataTrain4unscale |>
+                                select(
+                                  #"StormID",
+                                  #Date,
+                                  #Year,
+                                  #Month,
+                                  Day,
+                                  StormElapsedTime,
+                                  #StormElapsedTime2,
+                                  "basin",
+                                  "LAT",
+                                  "LON",
+                                  "Land",
+                                  "logMINSLP",
+                                  "logSHR_MAG",
+                                  "logSTM_SPD",
+                                  "logSST",
+                                  "logRHLO",
+                                  "logCAPE1",
+                                  "logCAPE3",
+                                  "logSHTFL2",
+                                  "logTCOND7002",
+                                  "logINST2",
+                                  "logCP1",
+                                  "logTCONDSYM2",
+                                  "logCOUPLSYM3",
+                                  "logHWFI",
+                                  "logVMAX_OP_T0",
+                                  "logHWRF",
+                                  "VMAX")) +
+  labs(title = "Normal VMAX vs Log Predictors")
+ggPairPlotlogPreds
+
+### Log vs Log ----
+ggPairPlotlogBoth <- ggpairs(StormdataTrain4unscale |>
                                select(
                                  #"StormID",
                                  #Date,
@@ -672,23 +1246,27 @@ ggPairPlotlogBoth <- ggpairs(StormdataTrain |>
                                  "LAT",
                                  "LON",
                                  "Land",
-                                 "MINSLP",
-                                 "SHR_MAG",
-                                 "STM_SPD",
-                                 "SST",
-                                 "RHLO",
-                                 "CAPE1",
-                                 "CAPE3",
-                                 "SHTFL2",
-                                 "TCOND7002",
-                                 "INST2",
-                                 "CP1",
-                                 "TCONDSYM2",
-                                 "COUPLSYM3",
-                                 "HWFI",
-                                 "VMAX_OP_T0",
-                                 "HWRF",
-                                 "VMAX"))
+                                 "logMINSLP",
+                                 "logSHR_MAG",
+                                 "logSTM_SPD",
+                                 "logSST",
+                                 "logRHLO",
+                                 "logCAPE1",
+                                 "logCAPE3",
+                                 "logSHTFL2",
+                                 "logTCOND7002",
+                                 "logINST2",
+                                 "logCP1",
+                                 "logTCONDSYM2",
+                                 "logCOUPLSYM3",
+                                 "logHWFI",
+                                 "logVMAX_OP_T0",
+                                 "logHWRF",
+                                 "VMAX") |>
+                               mutate(
+                                 VMAX = log(VMAX)
+                               )) +
+  labs(title = "Log VMAX vs Log Predictors")
 ggPairPlotlogBoth
 
 ## Scatter ----
@@ -710,6 +1288,15 @@ sd(StormdataTrain3$VMAX/StormdataTrain3$HWRF)
 mean(log(StormdataTrain3$VMAX/StormdataTrain3$HWRF))
 mean(log(StormdataTrain3$VMAX)/log(StormdataTrain3$HWRF))
 sd(log(StormdataTrain3$VMAX/StormdataTrain3$HWRF))
+
+mean_var_plot <- StormdataTrain4 %>%
+  group_by(StormID) %>%
+  summarise(mean_wind = mean(VMAX),
+            var_wind = var(VMAX))
+
+plot(mean_var_plot$mean_wind, mean_var_plot$var_wind, 
+     main = "Variance vs Mean Wind Speed", 
+     xlab = "Mean Wind Speed", ylab = "Variance")
 
 ## Histogram ----
 ggplot(data = StormdataTrain3) +
@@ -992,6 +1579,20 @@ ggplot() +
 #   #facet_wrap(vars(DataType), nrow = 2) +
 #   theme_bw()
 
+ggplot() + 
+  geom_point(
+    data = StormdataTrain,
+    aes(x = LON, y = LAT, 
+        color = VMAX,
+        shape = Land
+    )
+  ) +
+  # xlim(c(-190,0)) +
+  # ylim(c(0,60)) +
+  scale_color_continuous(low = "green", high = "red") +
+  facet_wrap(vars(StormElapsedTime)) +
+  theme_bw()
+
 # Find Distributions ----
 
 ddist <- descdist(StormdataTrain3$VMAX, discrete = FALSE)
@@ -1252,7 +1853,7 @@ NULLrm <- NUllenv[cutNULL]
 rm(list = NULLrm)
 
 ## HWRF Model ----
-logNormalFitHWRF <- brm(
+logNormalFitHWRF2 <- brm(
   bf(
     VMAX ~ logHWRF
   ),
@@ -1485,7 +2086,7 @@ HWRFrm <- NUllenv[cutHWRF]
 rm(list = HWRFrm)
 
 ## HWRF StormID Model ----
-logNormalFitHWRFstormID <- brm(
+logNormalFitHWRFstormID2 <- brm(
   bf(
     VMAX ~ logHWRF +
       (1|StormID)
@@ -1779,70 +2380,233 @@ save(list = BASEenv,
      file = "~/Desktop/Temp Hurricane Model Data/logNormalBaseEnv.RData")
 
 # Fit Model ----
+
+### POOLED
+# s(Day, bs = "cc") +
+# s(StormElapsedTime, bs = "tp") +
+# s(LON, bs = "tp") +
+# s(LAT, bs = "tp") +
+# Day + 
+# StormElapsedTime +
+# LAT +
+# LON +
+# basin +
+# MINSLP +
+# SHR_MAG +
+# STM_SPD +
+# SST +
+# RHLO +
+# CAPE1 +
+# CAPE3 +
+# SHTFL2 +
+# TCOND7002 +
+# INST2 +
+# CP1 +
+# TCONDSYM2 +
+# COUPLSYM3 +
+# HWFI +
+# VMAX_OP_T0 +
+# HWRF
+
+### UNPOOLED
+
 # Fit1: VMAX ~ logHWRFcenter + (1|StormID)
 ##      data = StormdataTrain4
 # Fit2: VMAX ~ logHWRFscale + (1|StormID)
 ##      data = StormdataTrain4
+# Fit3: VMAX ~ HWRF + (1|StormID)
+##      data = StormdataTrain4
+# Fit4: VMAX ~   bf(VMAX ~ 
+#                   s(Day, bs = "cc") +
+#                   s(StormElapsedTime, bs = "tp") +
+#                   s(LON, bs = "tp") +
+#                   s(LAT, bs = "tp") +
+#                   logHWRF +
+#                   (1|StormID)
+#                   )
+##      data = StormdataTrain4
+# Fit5: VMAX ~   bf(VMAX ~ 
+#                   Day + I(Day^2) +
+#                   s(StormElapsedTime, bs = "tp") +
+#                   s(LON, bs = "tp") +
+#                   s(LAT, bs = "tp") +
+#                   logHWRF +
+#                   (1|StormID)
+#                   )
+##      data = StormdataTrain4
+# Fit6: VMAX ~   bf(VMAX ~ 
+#                   Day + I(Day^2) +
+#                   s(StormElapsedTime, bs = "tp") +
+#                   s(LON, bs = "tp") +
+#                   s(LAT, bs = "tp") +
+#                   logHWRF +
+#                   (1|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit7: VMAX ~   bf(VMAX ~ 
+#                   s(Day, bs = "cc") +
+#                   s(StormElapsedTime, bs = "tp") +
+#                   s(LON, LAT) +
+#                   logHWRF +
+#                   (1 + StormElapsedTime|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit8: VMAX ~   bf(VMAX ~ 
+#                   s(StormElapsedTime, bs = "tp") +
+#                   s(LON, LAT) +
+#                   logHWRF +
+#                   (1 + StormElapsedTime|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit9: VMAX ~   bf(VMAX ~ 
+#                   s(StormElapsedTime, bs = "tp") +
+#                   t2(LON, LAT) +
+#                   logHWRF +
+#                   (1 + StormElapsedTime|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit10: VMAX ~   bf(VMAX ~ 
+#                   s(StormElapsedTime, bs = "tp") +
+#                   s(LON, LAT, by = basin) +
+#                   logHWRF +
+#                   (1|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit11: VMAX ~   bf(VMAX ~ 
+#                   basin +
+#                   s(LON) +
+#                   s(LAT) +
+#                   Land +
+#                   logHWRF +
+#                   (1|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit12: VMAX ~   bf(VMAX ~ 
+#                   basin +
+#                   LON +
+#                   LAT +
+#                   Land +
+#                   logMINSLP +
+#                   logSTM_SPD +
+#                   logHWFI +
+#                   logVMAX_OP_T0 +
+#                   logHWRF +
+#                   (1|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit13: VMAX ~   bf(VMAX ~ 
+#                   basin +
+#                   LON +
+#                   LAT +
+#                   LON:basin +
+#                   LAT:basin +
+#                   Land +
+#                   logMINSLP +
+#                   logSTM_SPD +
+#                   logHWFI +
+#                   logVMAX_OP_T0 +
+#                   logHWRF +
+#                   (1|StormID)
+#                   ),
+#                   sigma ~ logHWRF
+##      data = StormdataTrain4
+# Fit14: bf(VMAX ~ 
+#             basin +
+#             LON +
+#             LAT +
+#             Land +
+#             arcsinhMINSLP +
+#             arcsinhSHR_MAG +
+#             arcsinhSTM_SPD +
+#      arcsinhSST +
+#      arcsinhRHLO +
+#      arcsinhCAPE1 +
+#      arcsinhCAPE3 +
+#      arcsinhSHTFL2 +
+#      arcsinhTCOND7002 +
+#      arcsinhINST2 +
+#      arcsinhCP1 +
+#      arcsinhTCONDSYM2 +
+#      arcsinhCOUPLSYM3 +
+#      arcsinhHWFI +
+#      arcsinhVMAX_OP_T0 +
+#      arcsinhHWRF +
+#      (1|StormID),
+#    sigma ~ arcsinhHWRF
+# ),
+# data = StormdataTrain5,
 
 ## Model ----
-fit <- 2
-iters <- 2000
+fit <- 33
+iters <- 5000
 burn <- 1000
-chains <- 4
+chains <- 1
 sims <- (iters-burn)*chains
 
 tic()
 logNormalFit <- brm(
-  bf(VMAX ~ 
-       logHWRFscale +
-       (1|StormID)
-     #0 + Intercept +
-     #s(Day, bs = "cc") +
-     # s(StormElapsedTime, bs = "tp") +
-     # s(LON, bs = "tp") +
-     # s(LAT, bs = "tp") +
-     # basin + 
-     # MINSLP +
-     # SHR_MAG +
-     # STM_SPD +
-     # SST +
-     # RHLO +
-     # CAPE1 +
-     # CAPE3 +
-     # SHTFL2 +
-     # TCOND7002 +
-     # INST2 +
-     # CP1 +
-     # TCONDSYM2 +
-     # COUPLSYM3 +
-     # HWFI +
-     # VMAX_OP_T0
+  bf(VMAX ~
+       basin +
+       LON + 
+       LAT +
+       Land +
+       arcsinhMINSLP +
+       arcsinhSHR_MAG +
+       arcsinhSTM_SPD +
+       arcsinhSST +
+       arcsinhRHLO +
+       arcsinhCAPE1 +
+       arcsinhCAPE3 +
+       arcsinhSHTFL2 +
+       arcsinhTCOND7002 +
+       arcsinhINST2 +
+       arcsinhCP1 +
+       arcsinhTCONDSYM2 +
+       arcsinhCOUPLSYM3 +
+       arcsinhHWFI +
+       arcsinhVMAX_OP_T0 +
+       arcsinhHWRF +
+       (1|StormID),
+     sigma ~ LON + LAT + arcsinhHWRF
   ),
-  data = StormdataTrain4,
-  family = lognormal(link = "identity"),
+  data = StormdataTrain6,
+  family = brmsfamily(family = "lognormal", link = "identity"),
   save_pars = save_pars(all = TRUE), 
   chains = chains,
   iter = iters,
   seed = 52,
   warmup = burn,
+  normalize = FALSE,
   # prior = c(
   #   prior(normal(62, 30), class = b, coef = Intercept)
   # ),
   # knots = list(
-  #   Day = c(0, 365)),
+  #   # Day = c(0, 365)),
   # Day = c(scale(0,
-  #               center = attr(StormdataTrain7scale |> pull(Day), "scaled:center"),
-  #               scale = attr(StormdataTrain7scale |> pull(Day), "scaled:scale")),
+  #               center = attr(StormdataTrain4 |> pull(Day), "scaled:center"),
+  #               scale = attr(StormdataTrain4 |> pull(Day), "scaled:scale")),
   #         scale(365,
-  #               center = attr(StormdataTrain7scale |> pull(Day), "scaled:center"),
-  #               scale = attr(StormdataTrain7scale |> pull(Day), "scaled:scale"))
+  #               center = attr(StormdataTrain4 |> pull(Day), "scaled:center"),
+  #               scale = attr(StormdataTrain4 |> pull(Day), "scaled:scale"))
   # )),
   control = list(adapt_delta = 0.95)
 )
 toc()
 
+### Save Fit ----
+logNormalFit33 <- logNormalFit
+fileLoc <- "~/Desktop/Temp Hurricane Model Data/logNormal Fits/" 
+save(logNormalFit33,
+     file = paste0(fileLoc, "logNormalFit", fit, ".RData"))
+
 ### Diagnostics ----
-logNormalFit2 <- logNormalFit
 prior_summary(logNormalFit)
 posterior_summary(logNormalFit)
 launch_shinystan(logNormalFit)
@@ -1850,7 +2614,14 @@ launch_shinystan(logNormalFit)
 print(logNormalFitNULL, digits = 4)
 print(logNormalFitHWRF, digits = 4)
 print(logNormalFitHWRFstormID, digits = 4)
-print(logNormalFit, digits = 4)
+print(logNormalFit12, digits = 4)
+print(logNormalFit12B, digits = 4)
+print(logNormalFit12C, digits = 4)
+print(logNormalFit12D, digits = 4)
+print(logNormalFit15, digits = 4)
+print(logNormalFit16, digits = 4)
+print(logNormalFit17, digits = 4)
+print(logNormalFit32, digits = 4)
 
 plot(logNormalFit)
 logNormalFitppcFit <- pp_check(logNormalFit, ndraws = 100) + 
@@ -1868,16 +2639,38 @@ mean(abs(StormdataTrain$VMAX - StormdataTrain$HWRF))
 model_performance(logNormalFit)
 
 variance_decomposition(logNormalFit)
-fixef(logNormalFit)
+fixedEff <- fixef(logNormalFit)
+fixedEff2 <- data.frame(fixedEff) |>
+  mutate(
+    p_val = dnorm(Estimate/Est.Error)
+  ) |>
+  mutate(
+    across(everything(), function(x){round(x, 4)})
+  ) |>
+  mutate(
+    Sig = ifelse(p_val < 0.01, "***",
+                 ifelse(p_val < 0.05, "**",
+                        ifelse(p_val < 0.1, "*", "")))
+  )
+fixedEff2
 ranef(logNormalFit)
+
+
 
 logNormalFitR2 <- bayes_R2(logNormalFit) |>
   bind_cols(Fit = paste0("logNormalFit", fit)) |>
   select(Fit, everything())
 
-bayes_factor(logNormalFit, logNormalFit1)
+bayes_factor(logNormalFit, logNormalFitHWRFstormID)
+bayes_factor(logNormalFit, logNormalFit8)
+bayes_factor(logNormalFit, logNormalFit15)
 
-logNormalFitsmooths <- conditional_smooths(logNormalFit)
+logNormalFitsmooths <- conditional_smooths(logNormalFit,
+                                           method = "posterior_predict")
+plot(logNormalFitsmooths, 
+     stype = "raster", 
+     ask = FALSE,
+     theme = theme(legend.position = "bottom"))
 plot(logNormalFitsmooths, 
      stype = "contour", 
      ask = FALSE,
@@ -1887,6 +2680,24 @@ logNormalFiteffects <- conditional_effects(logNormalFit,
                                            method = "posterior_predict",
                                            robust = FALSE)
 plot(logNormalFiteffects, 
+     points = TRUE, 
+     ask = FALSE)
+
+logNormalFiteffects2 <- conditional_effects(logNormalFit12B, 
+                                           method = "posterior_predict",
+                                           robust = FALSE,
+                                           effects = "logHWRF")
+plot(logNormalFiteffects2, 
+     points = TRUE, 
+     ask = FALSE)
+
+logNormalFiteffects3 <- logNormalFiteffects2
+logNormalFiteffects3$logHWRF <- logNormalFiteffects3$logHWRF |>
+  mutate(
+    logHWRF = exp(logHWRF),
+    effect1__ = exp(effect1__)
+  )
+plot(logNormalFiteffects3, 
      points = TRUE, 
      ask = FALSE)
 
@@ -1902,7 +2713,7 @@ logNormalFitfinalFitUCB <- apply(logNormalFitfinalFit, 2, function(x){quantile(x
 
 ## Prediction on new data
 logNormalFitfinalPreds <- posterior_predict(logNormalFit, 
-                                            newdata = StormdataTest4,
+                                            newdata = StormdataTest6,
                                             allow_new_levels = TRUE, 
                                             re_formula = NULL)
 logNormalFitfinalPredsMean <- colMeans(logNormalFitfinalPreds)
@@ -1923,7 +2734,7 @@ logNormalFitpredMetrics <- tibble(
 logNormalFitpredMetrics
 
 ### Plotting ----
-## Fit
+#### Fit ----
 ppc_dens_overlay(y = Actual_Yvec, yrep = logNormalFitfinalPreds) +
   labs(title = "logNormalFit Predict") +
   theme_bw()
@@ -1951,22 +2762,55 @@ logNormalFitstormsFitplot <- ggplot(data = logNormalFitFitDF, aes(x = StormElaps
   theme_bw()
 logNormalFitstormsFitplot
 
-## Residuals
-logNormalFitResiduals <- residuals(logNormalFit, method = "posterior_predict")
-ppc_error_hist(StormdataTrain8$VMAX, logNormalFitfinalFit[c(1,20,100), ])
-ppc_error_scatter_avg(StormdataTrain$VMAX, logNormalFitfinalFit)
-ppc_error_scatter_avg_vs_x(StormdataTrain$VMAX, 
-                           logNormalFitfinalFit,
-                           StormdataTrain$StormElapsedTime)
-ppc_error_scatter_avg_vs_x(StormdataTrain$VMAX, 
-                           logNormalFitfinalFit,
-                           StormdataTrain$HWRF)
-ppc_scatter_avg_grouped(StormdataTrain$VMAX, 
-                        logNormalFitfinalFit,
-                        StormdataTrain$StormID,
-                        facet_args = list(scales = "free_x"))
+#### Residuals ----
+logNormalFitResiduals <- residuals(logNormalFit, 
+                                   method = "posterior_predict",
+                                   summary = FALSE)
 
-## Prediction
+logNormalFitResidualsSum <- colMeans(logNormalFitResiduals)
+
+# Extract residuals and fitted values from the baseline model
+residuals_baseline <- residuals(logNormalFit, summary = TRUE)
+fitted_vals <- fitted(fit_baseline)
+
+# Plot residuals vs Sea_Surface_Temp to check for heteroscedasticity
+plot(StormdataTrain5$arcsinhMINSLP, logNormalFitResidualsSum, 
+     xlab = "arcsinhMINSLP", ylab = "Residuals", 
+     main = "Residuals vs arcsinhMINSLP")
+
+# Similarly, plot residuals against other predictors
+plot(hurricane_data$Pressure, residuals_baseline, 
+     xlab = "Pressure", ylab = "Residuals", 
+     main = "Residuals vs Pressure")
+
+modelParams <- row.names(fixef(logNormalFit15))
+modelParams <- str_subset(modelParams, "sigma", negate = TRUE)
+modelParams <- str_subset(modelParams, "Intercept", negate = TRUE)
+modelParams[1] <- "basin"
+modelParams[4] <- "Land"
+modelParams
+resids_list <- list()
+for(i in modelParams){
+  resids_list[[i]] <- ppc_error_scatter_avg_vs_x(StormdataTrain5$VMAX, 
+                             logNormalFitfinalFit,
+                             as.numeric(StormdataTrain5[[i]])) +
+    geom_smooth(method = "lm", orientation = "y", level = 0.95) +
+    labs(y = i)
+}
+resids_list
+
+ppc_error_scatter_avg(StormdataTrain5$VMAX, 
+                           logNormalFitfinalFit)
+
+ppc_error_scatter_avg_vs_x(StormdataTrain5$VMAX, 
+                           logNormalFitfinalFit,
+                           as.numeric(StormdataTrain5[["arcsinhMINSLP"]])) +
+  geom_smooth(orientation = "y", level = 0.95) +
+  labs(y = "arcsinhMINSLP")
+
+
+
+#### Prediction ----
 logNormalFitPredDF <- bind_cols(
   StormdataTest,
   LCB = logNormalFitfinalPredsLCB,
@@ -1976,14 +2820,13 @@ logNormalFitPredDF <- bind_cols(
 ) |>
   mutate(
     VMAX = Actual_Yvec
-  ) #|>
-# filter(StormID %in% c(1812014))
+  ) 
 
 logNormalFitstormsPredplot <- ggplot(data = logNormalFitPredDF, aes(x = StormElapsedTime)) +
   geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
   geom_line(aes(y = VMAX, color = "Observed")) +
   geom_line(aes(y = Mean, color = "PPD Mean")) +
-  facet_wrap(vars(StormID), ncol = 6)+
+  facet_wrap(vars(StormID))+#, ncol = 6)+
   scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50)) +
   labs(title = "logNormalFit PPD Mean vs Observed VMAX",
        subtitle = "95% Credible Interval about PPD Mean") +
@@ -2141,6 +2984,8 @@ logNormalFitkfoldgroup <- kfold(logNormalFit,
                                 folds = kfoldID,
                                 chains = 1,
                                 save_fits = TRUE)
+save(logNormalFitkfoldgroup,
+     file = "~/Desktop/Temp Hurricane Model Data/logNormalFit12kfold.RData")
 logNormalFitkfoldPreds <- kfold_predict(logNormalFitkfoldgroup)
 logNormalFitkfoldPredsDat <- logNormalFitkfoldPreds$yrep
 logNormalFitkfoldPredsMean <- colMeans(logNormalFitkfoldPredsDat)
@@ -2171,23 +3016,73 @@ save(pvalueComp_logNormalAll,
 
 ## LOO ----
 logNormalFitloo1 <- loo(logNormalFit1)
-attributes(logNormalFitloo1)$model_name <- "logNormalFit1"
+#attributes(logNormalFitloo1)$model_name <- "logNormalFit1"
 logNormalFitloo2 <- loo(logNormalFit2)
-attributes(logNormalFitloo1)$model_name <- "logNormalFit1"
+logNormalFitloo3 <- loo(logNormalFit3)
+logNormalFitloo4 <- loo(logNormalFit4)
+NormalFitloo4 <- loo(NormalFit4)
+logNormalFitloo5 <- loo(logNormalFit5)
+logNormalFitloo6 <- loo(logNormalFit6)
+logNormalFitloo7 <- loo(logNormalFit7)
+logNormalFitloo8 <- loo(logNormalFit8)
+logNormalFitloo9 <- loo(logNormalFit9)
+logNormalFitloo10 <- loo(logNormalFit10)
+logNormalFitloo11 <- loo(logNormalFit11)
+logNormalFitloo12 <- loo(logNormalFit12)
+logNormalFitloo12B <- loo(logNormalFit12B)
+logNormalFitloo12C <- loo(logNormalFit12C)
+logNormalFitloo12D <- loo(logNormalFit12D)
+logNormalFitloo13 <- loo(logNormalFit13)
+logNormalFitloo14 <- loo(logNormalFit14)
+logNormalFitloo15 <- loo(logNormalFit15)
+logNormalFitloo16 <- loo(logNormalFit16)
+logNormalFitloo17 <- loo(logNormalFit17)
+logNormalFitloo18 <- loo(logNormalFit18)
+logNormalFitloo19 <- loo(logNormalFit19)
+logNormalFitloo22 <- loo(logNormalFit22)
+logNormalFitloo24 <- loo(logNormalFit24)
+logNormalFitloo25 <- loo(logNormalFit25)
+logNormalFitloo26 <- loo(logNormalFit26)
+logNormalFitloo27 <- loo(logNormalFit27)
+logNormalFitloo32 <- loo(logNormalFit32)
+logNormalFitloo33 <- loo(logNormalFit33)
 
 looComp_logNormalAll <- loo_compare(
   logNormalFitNULLloo,
   logNormalFitHWRFloo,
   logNormalFitHWRFstormIDloo,
   logNormalFitloo1,
-  logNormalFitloo2
-  # logNormalFitloo3,
-  # logNormalFitloo5,
-  # logNormalFitloo6,
-  # logNormalFitloo8,
-  # logNormalFitloo9,
-  # logNormalFitloo11,
-  # logNormalFitloo12
+  logNormalFitloo2,
+  logNormalFitloo3,
+  logNormalFitloo4,
+  NormalFitloo4,
+  logNormalFitloo5,
+  logNormalFitloo6,
+  logNormalFitloo7,
+  logNormalFitloo8,
+  logNormalFitloo9,
+  logNormalFitloo10,
+  logNormalFitloo11,
+  logNormalFitloo12,
+  logNormalFitloo12B,
+  logNormalFitloo12C,
+  logNormalFitloo12D,
+  logNormalFitloo13,
+  logNormalFitloo14,
+  logNormalFitloo15,
+  logNormalFitloo16,
+  logNormalFitloo17,
+  logNormalFitloo18,
+  logNormalFitloo19,
+  logNormalFitloo22,
+  logNormalFitloo24,
+  logNormalFitloo25,
+  logNormalFitloo26,
+  logNormalFitloo27,
+  logNormalFitloo30,
+  logNormalFitloo31,
+  logNormalFitloo32,
+  logNormalFitloo33
 )
 looComp_logNormalAll
 
@@ -2242,9 +3137,57 @@ predComp_logNormalAll
 bayesR2_logNormalAll
 
 ## Print Models ----
+logNormalFitModels <- list(
+logNormalFitNULL$formula,
+logNormalFitHWRF$formula,
+logNormalFitHWRFstormID$formula,
+logNormalFit1$formula,
+logNormalFit2$formula,
+logNormalFit3$formula,
+logNormalFit4$formula,
+logNormalFit5$formula,
+logNormalFit6$formula,
+logNormalFit7$formula,
+logNormalFit8$formula,
+logNormalFit9$formula,
+logNormalFit10$formula,
+logNormalFit11$formula,
+logNormalFit12$formula,
+logNormalFit13$formula,
+logNormalFit14$formula,
+logNormalFit15$formula,
+logNormalFit16$formula,
+logNormalFit17$formula,
+logNormalFit18$formula,
+logNormalFit19$formula,
+logNormalFit20$formula,
+logNormalFit21$formula,
+logNormalFit22$formula,
+logNormalFit23$formula,
+logNormalFit24$formula,
+logNormalFit25$formula,
+logNormalFit26$formula,
+logNormalFit27$formula,
+logNormalFit30$formula,
+logNormalFit31$formula)
+
+save(logNormalFitModels,
+     file = "~/Desktop/Temp Hurricane Model Data/logNormalModelFits.RData")
+
 print(logNormalFitNULL, digits = 4)
 print(logNormalFitHWRF, digits = 4)
 print(logNormalFitHWRFstormID, digits = 4)
 print(logNormalFit1, digits = 4)
 print(logNormalFit2, digits = 4)
-
+print(logNormalFit3, digits = 4)
+print(logNormalFit4, digits = 4)
+print(logNormalFit5, digits = 4)
+print(logNormalFit6, digits = 4)
+print(logNormalFit7, digits = 4)
+print(logNormalFit8, digits = 4)
+print(logNormalFit9, digits = 4)
+print(logNormalFit10, digits = 4)
+print(logNormalFit11, digits = 4)
+print(logNormalFit12, digits = 4)
+print(logNormalFit13, digits = 4)
+print(logNormalFit31, digits = 4)
