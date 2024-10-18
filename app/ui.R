@@ -15,6 +15,8 @@ library(waiter)
 library(data.table)
 library(glue)
 library(scales)
+library(sf)
+library(spData)
 library(bestNormalize)
 library(smplot2)
 library(reactable)
@@ -25,7 +27,7 @@ library(tidyverse)
 shinyUI(
     bs4DashPage(
         title = "Hurricane Explore", skin = "dark", 
-        preloader = list(html = tagList(spin_1(), "Loading ..."), color = "#3c8dbc"),
+        #preloader = list(html = tagList(spin_1(), "Loading ..."), color = "#3c8dbc"),
         
         # Header ====
         header = dashboardHeader(
@@ -87,7 +89,7 @@ shinyUI(
                                             choices = c(
                                                 "Scatter" = "scatter_plot",
                                                 "Histogram" = "histogram_plot",
-                                                "Boxplot" = "box_plot",
+                                                #"Boxplot" = "box_plot",
                                                 "Map" = "map_plot"
                                             ), 
                                             selected = "scatter_plot", 
