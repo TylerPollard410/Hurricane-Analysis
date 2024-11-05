@@ -14,6 +14,7 @@ library(shinyWidgets)
 library(waiter)
 library(data.table)
 library(glue)
+library(maps)
 library(scales)
 library(sf)
 library(spData)
@@ -89,7 +90,6 @@ shinyUI(
                                             choices = c(
                                                 "Scatter" = "scatter_plot",
                                                 "Histogram" = "histogram_plot",
-                                                #"Boxplot" = "box_plot",
                                                 "Map" = "map_plot"
                                             ), 
                                             selected = "scatter_plot", 

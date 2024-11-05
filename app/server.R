@@ -424,7 +424,7 @@ shinyServer(function(input, output, session){
                     inputId = "scatter_x",
                     label = "Select x variable",
                     choices = c(num_columns,"Date"),
-                    selected = NULL
+                    selected = "HWRF"
                 ),
                 radioGroupButtons(
                     inputId = "scatter_transform_x",
@@ -537,6 +537,7 @@ shinyServer(function(input, output, session){
                     choices = c("None",
                                 "Log", 
                                 "Arcsinh"),
+                    selected = "None",
                     individual = TRUE,
                     checkIcon = list(
                         yes = tags$i(class = "fa fa-check-square", 
@@ -623,35 +624,18 @@ shinyServer(function(input, output, session){
                                      )
                                  )
                 )
-                # hr(),
-                # materialSwitch(
-                #     inputId = "map_facet_switch",
-                #     label = "Facet plot by variable?", 
-                #     value = FALSE, 
-                #     status = "info"
-                # ),
-                # conditionalPanel(condition = 'input.map_facet_switch',
-                #                  pickerInput(
-                #                      inputId = "map_facet",
-                #                      label = "Select facet variable",
-                #                      choices = colnames(StormdataTrain3 |> select(-LAT, -LON)),
-                #                      selected = NULL, 
-                #                      multiple = TRUE,
-                #                      options = pickerOptions(
-                #                          maxOptions = 1,
-                #                          virtualScroll = 600,
-                #                          dropupAuto = FALSE
-                #                      )
-                #                  )
-                # )
             )
         }
     })
     
     ## Plot Output ----
     output$OutPlot <- renderPlot({
-        #req(input$scatter_y)
+        req(input$plot_type)
         if(input$plot_type == "scatter_plot"){
+            req(
+                input$scatter_x,
+                input$scatter_y
+            )
             scatterPlot <- PlotScatter(
                 x = input$scatter_x,
                 y = input$scatter_y,
@@ -665,6 +649,9 @@ shinyServer(function(input, output, session){
             )
             plotOut <- scatterPlot
         }else if(input$plot_type == "histogram_plot"){
+            req(
+                input$histogram_x
+            )
             histogramPlot <- PlotHistogram(
                 x = input$histogram_x,
                 transX = input$histogram_transform_x,
@@ -675,9 +662,11 @@ shinyServer(function(input, output, session){
             )
             plotOut <- histogramPlot
         }else if(input$plot_type == "map_plot"){
+            req(
+                !is.null(input$map_color_switch)
+            )
             mapPlot <- PlotMap(
-                color = if(input$map_color_switch){input$map_color}#,
-                #facet = if(input$map_facet_switch){input$map_facet}
+                color = if(input$map_color_switch){input$map_color}
             )
             plotOut <- mapPlot
         }
@@ -686,6 +675,7 @@ shinyServer(function(input, output, session){
     })
     
     output$OutPlotUI <- renderUI({
+        req(input$plot_type)
         plotOutput(outputId = "OutPlot",
                    width = "100%",
                    height = input$plot_height)
