@@ -323,7 +323,7 @@ StormdataTrain4 <- StormdataTrain |>
                                   logHWRF,
                                   StormElapsedTime2,
                                   LAT2, LON2
-                                  ),
+    ),
     function(x){scale(x)}),
     # logMINSLPscale = scale(logMINSLP, center = TRUE, scale = TRUE),
     # logSHR_MAGscale = scale(logSHR_MAG, center = TRUE, scale = TRUE),
@@ -2544,72 +2544,87 @@ save(list = BASEenv,
 # data = StormdataTrain5,
 
 ## Model ----
-fit <- 33
 iters <- 5000
 burn <- 1000
-chains <- 1
+chains <- 2
 sims <- (iters-burn)*chains
 
-tic()
-logNormalFit <- brm(
+formulaVMAX <- 
   bf(VMAX ~
-       basin +
-       LON + 
-       LAT +
+       #basin +
+       #LON + 
+       #LAT +
        Land +
-       arcsinhMINSLP +
+       #arcsinhMINSLP +
        arcsinhSHR_MAG +
        arcsinhSTM_SPD +
-       arcsinhSST +
+       #arcsinhSST +
        arcsinhRHLO +
-       arcsinhCAPE1 +
+       #arcsinhCAPE1 +
        arcsinhCAPE3 +
        arcsinhSHTFL2 +
-       arcsinhTCOND7002 +
-       arcsinhINST2 +
-       arcsinhCP1 +
+       #arcsinhTCOND7002 +
+       #arcsinhINST2 +
+       #arcsinhCP1 +
        arcsinhTCONDSYM2 +
        arcsinhCOUPLSYM3 +
        arcsinhHWFI +
-       arcsinhVMAX_OP_T0 +
+       #arcsinhVMAX_OP_T0 +
        arcsinhHWRF +
        (1|StormID),
-     sigma ~ LON + LAT + arcsinhHWRF
-  ),
-  data = StormdataTrain6,
-  family = brmsfamily(family = "lognormal", link = "identity"),
-  save_pars = save_pars(all = TRUE), 
-  chains = chains,
-  iter = iters,
-  seed = 52,
-  warmup = burn,
-  normalize = FALSE,
-  # prior = c(
-  #   prior(normal(62, 30), class = b, coef = Intercept)
-  # ),
-  # knots = list(
-  #   # Day = c(0, 365)),
-  # Day = c(scale(0,
-  #               center = attr(StormdataTrain4 |> pull(Day), "scaled:center"),
-  #               scale = attr(StormdataTrain4 |> pull(Day), "scaled:scale")),
-  #         scale(365,
-  #               center = attr(StormdataTrain4 |> pull(Day), "scaled:center"),
-  #               scale = attr(StormdataTrain4 |> pull(Day), "scaled:scale"))
-  # )),
-  control = list(adapt_delta = 0.95)
+     sigma ~ arcsinhHWRF
+  ) + brmsfamily(family = "lognormal", link = "identity")
+
+default_prior(formulaVMAX, data = StormdataTrain6)
+
+priorsVMAX <- c(
+  #prior(horseshoe(1), class = "b"),
+  prior(normal(0,10), class = "b")
 )
-toc()
+
+system.time(
+  logNormalFit <- brm(
+    formulaVMAX,
+    data = StormdataTrain6,
+    prior = priorsVMAX,
+    save_pars = save_pars(all = TRUE), 
+    chains = chains,
+    iter = iters,
+    cores = parallel::detectCores(),
+    seed = 52,
+    warmup = burn,
+    normalize = FALSE,
+    # prior = c(
+    #   prior(normal(62, 30), class = b, coef = Intercept)
+    # ),
+    # knots = list(
+    #   # Day = c(0, 365)),
+    # Day = c(scale(0,
+    #               center = attr(StormdataTrain4 |> pull(Day), "scaled:center"),
+    #               scale = attr(StormdataTrain4 |> pull(Day), "scaled:scale")),
+    #         scale(365,
+    #               center = attr(StormdataTrain4 |> pull(Day), "scaled:center"),
+    #               scale = attr(StormdataTrain4 |> pull(Day), "scaled:scale"))
+    # )),
+    control = list(adapt_delta = 0.95),
+    backend = "cmdstanr"
+  )
+)
+
+fit <- 37
 
 ### Save Fit ----
-logNormalFit33 <- logNormalFit
+logNormalFit37 <- logNormalFit
 fileLoc <- "~/Desktop/Temp Hurricane Model Data/logNormal Fits/" 
-save(logNormalFit33,
+save(logNormalFit37,
      file = paste0(fileLoc, "logNormalFit", fit, ".RData"))
+
+#load(file = "~/Desktop/Temp Hurricane Model Data/logNormal Fits/logNormalFit37.RData" )
 
 ### Diagnostics ----
 prior_summary(logNormalFit)
 posterior_summary(logNormalFit)
-launch_shinystan(logNormalFit)
+#launch_shinystan(logNormalFit)
 
 print(logNormalFitNULL, digits = 4)
 print(logNormalFitHWRF, digits = 4)
@@ -2622,6 +2637,34 @@ print(logNormalFit15, digits = 4)
 print(logNormalFit16, digits = 4)
 print(logNormalFit17, digits = 4)
 print(logNormalFit32, digits = 4)
+
+print(logNormalFit, digits = 4)
+fixedEff <- fixef(logNormalFit)
+fixedEff <- data.frame(fixedEff) |>
+  mutate(
+    p_val = dnorm(Estimate/Est.Error)
+  ) |>
+  mutate(
+    across(everything(), function(x){round(x, 4)})
+  ) |>
+  mutate(
+    Sig = ifelse(p_val < 0.01, "***",
+                 ifelse(p_val < 0.05, "**",
+                        ifelse(p_val < 0.1, "*", "")))
+  )
+#print(fixedEff, digits = 4)
+fixedSigEff <- fixedEff |> filter(p_val < 0.2)
+# fixedSigEff <- fixedSigEff |> 
+#   rownames_to_column() |>
+#   mutate(
+#     response = str_split_i(rowname, "_", i = 1),
+#     param = str_remove(rowname, paste0(response,"_"))
+#   ) |> 
+#   relocate(c(response, param), .after = "rowname") |>
+#   select(-rowname)
+print(fixedSigEff)
+
+
 
 plot(logNormalFit)
 logNormalFitppcFit <- pp_check(logNormalFit, ndraws = 100) + 
@@ -2639,6 +2682,7 @@ mean(abs(StormdataTrain$VMAX - StormdataTrain$HWRF))
 model_performance(logNormalFit)
 
 variance_decomposition(logNormalFit)
+VarCorr(logNormalFit)
 fixedEff <- fixef(logNormalFit)
 fixedEff2 <- data.frame(fixedEff) |>
   mutate(
@@ -2660,6 +2704,7 @@ ranef(logNormalFit)
 logNormalFitR2 <- bayes_R2(logNormalFit) |>
   bind_cols(Fit = paste0("logNormalFit", fit)) |>
   select(Fit, everything())
+logNormalFitR2
 
 bayes_factor(logNormalFit, logNormalFitHWRFstormID)
 bayes_factor(logNormalFit, logNormalFit8)
@@ -2684,9 +2729,9 @@ plot(logNormalFiteffects,
      ask = FALSE)
 
 logNormalFiteffects2 <- conditional_effects(logNormalFit12B, 
-                                           method = "posterior_predict",
-                                           robust = FALSE,
-                                           effects = "logHWRF")
+                                            method = "posterior_predict",
+                                            robust = FALSE,
+                                            effects = "logHWRF")
 plot(logNormalFiteffects2, 
      points = TRUE, 
      ask = FALSE)
@@ -2702,6 +2747,8 @@ plot(logNormalFiteffects3,
      ask = FALSE)
 
 ### Prediction ----
+logNormalFit <- logNormalFit35
+fit <- 35
 ## Fitted
 logNormalFitfinalFit <- posterior_predict(logNormalFit)
 # logNormalFitfinalResiduals <- t(StormdataTrain3$VMAX - t(logNormalFitfinalFit))
@@ -2735,7 +2782,13 @@ logNormalFitpredMetrics
 
 ### Plotting ----
 #### Fit ----
-ppc_dens_overlay(y = Actual_Yvec, yrep = logNormalFitfinalPreds) +
+ppc_dens_overlay(y = Actual_Yvec, 
+                 yrep = logNormalFitfinalPreds[sample(1:sims, 200, replace = FALSE),]) +
+  labs(title = "logNormalFit Predict") +
+  theme_bw()
+pp_check(logNormalFit,
+         ndraws = 200,
+         type = "dens_overlay") +
   labs(title = "logNormalFit Predict") +
   theme_bw()
 
@@ -2792,15 +2845,15 @@ modelParams
 resids_list <- list()
 for(i in modelParams){
   resids_list[[i]] <- ppc_error_scatter_avg_vs_x(StormdataTrain5$VMAX, 
-                             logNormalFitfinalFit,
-                             as.numeric(StormdataTrain5[[i]])) +
+                                                 logNormalFitfinalFit,
+                                                 as.numeric(StormdataTrain5[[i]])) +
     geom_smooth(method = "lm", orientation = "y", level = 0.95) +
     labs(y = i)
 }
 resids_list
 
 ppc_error_scatter_avg(StormdataTrain5$VMAX, 
-                           logNormalFitfinalFit)
+                      logNormalFitfinalFit)
 
 ppc_error_scatter_avg_vs_x(StormdataTrain5$VMAX, 
                            logNormalFitfinalFit,
@@ -2836,6 +2889,29 @@ logNormalFitstormsPredplot <- ggplot(data = logNormalFitPredDF, aes(x = StormEla
   ) +
   theme_bw()
 logNormalFitstormsPredplot
+
+stormPlot <- c(
+  "3612015",
+  
+)
+
+logNormalFitstormsPredplot2 <- 
+  ggplot(data = logNormalFitPredDF |> 
+           filter(StormID == "1002017"), 
+         aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = "lightblue") +
+  geom_line(aes(y = VMAX, color = "Observed")) +
+  geom_line(aes(y = Mean, color = "PPD Mean")) +
+  #facet_wrap(vars(StormID))+#, ncol = 6)+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50)) +
+  labs(title = "logNormalFit PPD Mean vs Observed VMAX",
+       subtitle = "95% Credible Interval about PPD Mean") +
+  scale_color_manual(name = NULL, values = c("black","red")) +
+  guides(
+    color = guide_legend(override.aes = list(linewidth = 1))
+  ) +
+  theme_bw()
+logNormalFitstormsPredplot2
 
 ### PPC ----
 ###### Quantile 2.5 
@@ -3046,6 +3122,10 @@ logNormalFitloo26 <- loo(logNormalFit26)
 logNormalFitloo27 <- loo(logNormalFit27)
 logNormalFitloo32 <- loo(logNormalFit32)
 logNormalFitloo33 <- loo(logNormalFit33)
+logNormalFitloo34 <- loo(logNormalFit34)
+logNormalFitloo35 <- loo(logNormalFit35)
+logNormalFitloo36 <- loo(logNormalFit36)
+logNormalFitloo37 <- loo(logNormalFit37)
 
 looComp_logNormalAll <- loo_compare(
   logNormalFitNULLloo,
@@ -3082,9 +3162,20 @@ looComp_logNormalAll <- loo_compare(
   logNormalFitloo30,
   logNormalFitloo31,
   logNormalFitloo32,
-  logNormalFitloo33
+  logNormalFitloo33,
+  logNormalFitloo34,
+  logNormalFitloo35,
+  logNormalFitloo37
 )
 looComp_logNormalAll
+
+loo_compare(
+  logNormalFitloo33,
+  logNormalFitloo34,
+  logNormalFitloo35,
+  logNormalFitloo36,
+  logNormalFitloo37
+)
 
 save(looComp_logNormalAll, 
      file = "~/Desktop/Temp Hurricane Model Data/looComp_logNormalAll.RData")
@@ -3138,38 +3229,38 @@ bayesR2_logNormalAll
 
 ## Print Models ----
 logNormalFitModels <- list(
-logNormalFitNULL$formula,
-logNormalFitHWRF$formula,
-logNormalFitHWRFstormID$formula,
-logNormalFit1$formula,
-logNormalFit2$formula,
-logNormalFit3$formula,
-logNormalFit4$formula,
-logNormalFit5$formula,
-logNormalFit6$formula,
-logNormalFit7$formula,
-logNormalFit8$formula,
-logNormalFit9$formula,
-logNormalFit10$formula,
-logNormalFit11$formula,
-logNormalFit12$formula,
-logNormalFit13$formula,
-logNormalFit14$formula,
-logNormalFit15$formula,
-logNormalFit16$formula,
-logNormalFit17$formula,
-logNormalFit18$formula,
-logNormalFit19$formula,
-logNormalFit20$formula,
-logNormalFit21$formula,
-logNormalFit22$formula,
-logNormalFit23$formula,
-logNormalFit24$formula,
-logNormalFit25$formula,
-logNormalFit26$formula,
-logNormalFit27$formula,
-logNormalFit30$formula,
-logNormalFit31$formula)
+  logNormalFitNULL$formula,
+  logNormalFitHWRF$formula,
+  logNormalFitHWRFstormID$formula,
+  logNormalFit1$formula,
+  logNormalFit2$formula,
+  logNormalFit3$formula,
+  logNormalFit4$formula,
+  logNormalFit5$formula,
+  logNormalFit6$formula,
+  logNormalFit7$formula,
+  logNormalFit8$formula,
+  logNormalFit9$formula,
+  logNormalFit10$formula,
+  logNormalFit11$formula,
+  logNormalFit12$formula,
+  logNormalFit13$formula,
+  logNormalFit14$formula,
+  logNormalFit15$formula,
+  logNormalFit16$formula,
+  logNormalFit17$formula,
+  logNormalFit18$formula,
+  logNormalFit19$formula,
+  logNormalFit20$formula,
+  logNormalFit21$formula,
+  logNormalFit22$formula,
+  logNormalFit23$formula,
+  logNormalFit24$formula,
+  logNormalFit25$formula,
+  logNormalFit26$formula,
+  logNormalFit27$formula,
+  logNormalFit30$formula,
+  logNormalFit31$formula)
 
 save(logNormalFitModels,
      file = "~/Desktop/Temp Hurricane Model Data/logNormalModelFits.RData")
