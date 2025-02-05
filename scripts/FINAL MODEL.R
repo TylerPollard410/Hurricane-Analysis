@@ -179,14 +179,30 @@ StormdataTest <- Stormdata |>
 ## PreProcess data ----
 corData <- cor(StormdataTrain |> select(where(is.numeric)))
 
+### Regular ----
+preProc <- preProcess(StormdataTrain |> 
+                           select(
+                             where(is.numeric),
+                             -VMAX
+                             #-StormElapsedTime,
+                             #-LAT,
+                             #-LON
+                           ),
+                         method = c("scale", "center"))
+preProc
+StormdataTrain2 <- predict(preProc, StormdataTrain)
+StormdataTes2 <- predict(preProc, StormdataTest)
+colnames(StormdataTrain)
+
 ### YeoJohnson ----
 preProcYeo <- preProcess(StormdataTrain |> 
                            select(
                              where(is.numeric),
                              -VMAX,
-                             -StormElapsedTime,
-                             -LAT,
-                             -LON
+                             #-HWRF,
+                             -StormElapsedTime
+                             #-LAT,
+                             #-LON
                            ),
                          method = c("scale", "center", "YeoJohnson"))
 preProcYeo
@@ -212,23 +228,27 @@ colnames(StormdataTrainYeoB)
 ### Arcsinh ----
 StormdataTrainArcsinhPre <- StormdataTrain |>
   mutate(
-    across(c(where(is.numeric), -VMAX, -StormElapsedTime, -LAT, -LON),
+    across(c(where(is.numeric), 
+             -VMAX, #-HWRF,
+             -StormElapsedTime),# -LAT, -LON),
            ~predict(arcsinh_x(.x, standardize = FALSE), newdata = .x)
     ))
 
 StormdataTestArcsinhPre <- StormdataTest |>
   mutate(
-    across(c(where(is.numeric), -VMAX, -StormElapsedTime, -LAT, -LON),
+    across(c(where(is.numeric), 
+             -VMAX, #-HWRF,
+             -StormElapsedTime),# -LAT, -LON),
            ~predict(arcsinh_x(.x, standardize = FALSE), newdata = .x)
     ))
 
 preProcArcsinh <- preProcess(StormdataTrainArcsinhPre |> 
                                select(
                                  where(is.numeric),
-                                 -VMAX,
-                                 -StormElapsedTime,
-                                 -LAT,
-                                 -LON
+                                 -VMAX, #-HWRF,
+                                 -StormElapsedTime
+                                 #-LAT,
+                                 #-LON
                                ),
                              method = c("scale", "center"))
 preProcArcsinh
@@ -287,7 +307,7 @@ formulaVMAX <-
        STM_SPD + 
        SST + 
        RHLO + 
-       CAPE1 + 
+       #CAPE1 + 
        CAPE3 + 
        SHTFL2 + 
        #TCOND7002 + INST2 + 
@@ -295,10 +315,11 @@ formulaVMAX <-
        TCONDSYM2 +
        COUPLSYM3 +  # Physical storm predictors
        HWFI +
-       VMAX_OP_T0 +  # Operational estimates
-       s(HWRF) +  # Benchmark
-       (1 | StormID)  # Random effect for storm-specific variation
-     #sigma ~ HWRF
+       #VMAX_OP_T0 +  # Operational estimates
+       HWRF +  # Benchmark
+       (1 | StormID)#,  # Random effect for storm-specific variation
+     #sigma ~ HWRF #+ HWFI + STM_SPD
+     #nl = TRUE
   ) + brmsfamily(family = "lognormal", link = "identity")
 
 default_prior(formulaVMAX, data = StormdataTrainArcsinh)
@@ -306,6 +327,7 @@ default_prior(formulaVMAX, data = StormdataTrainArcsinh)
 priorsVMAX <- c(
   #prior(horseshoe(1), class = "b")
   prior(normal(0, 2), class = "b")
+  #prior(constant(exp(1)), class = "b", coef = "HWRF")
 )
 
 ## Fit brms ----
@@ -319,6 +341,7 @@ system.time(
     formulaVMAX,
     data = StormdataTrainArcsinh,
     #data = StormdataTrainYeo,
+    #data = StormdataTrain2,
     prior = priorsVMAX,
     save_pars = save_pars(all = TRUE), 
     chains = chains,
@@ -326,20 +349,30 @@ system.time(
     cores = parallel::detectCores(),
     seed = 52,
     warmup = burn,
-    init = 0,
-    normalize = TRUE,
+    #init = 0,
+    normalize = FALSE,
     control = list(adapt_delta = 0.95),
     backend = "cmdstanr"
   )
 )
 
 ## Diagnostics ----
-fit <- 9
+fit <- 25
 assign(paste0("Fit", fit), logNormalFit)
+#logNormalFit <- Fit14
 
-plot(logNormalFit, ask = FALSE)
+#plot(logNormalFit, ask = FALSE)
+#prior_summary(logNormalFit)
 
 print(logNormalFit, digits = 4)
+
+### Multicollinearity ----
+check_collinearity(logNormalFit)
+
+### Check heteroskedasity ----
+check_heteroscedasticity(logNormalFit)
+
+### Fixed Effects ----
 fixedEff <- fixef(logNormalFit)
 fixedEff <- data.frame(fixedEff) |>
   mutate(
@@ -353,26 +386,29 @@ fixedEff <- data.frame(fixedEff) |>
                  ifelse(p_val < 0.05, "**",
                         ifelse(p_val < 0.1, "*", "")))
   )
-#print(fixedEff, digits = 4)
+print(fixedEff, digits = 4)
 fixedSigEff <- fixedEff |> filter(p_val < 0.2)
-# fixedSigEff <- fixedSigEff |> 
-#   rownames_to_column() |>
-#   mutate(
-#     response = str_split_i(rowname, "_", i = 1),
-#     param = str_remove(rowname, paste0(response,"_"))
-#   ) |> 
-#   relocate(c(response, param), .after = "rowname") |>
-#   select(-rowname)
 print(fixedSigEff)
+
+pp_check(logNormalFit, ndraws = 100)
+
+### Hypothesis Tests -----
+posterior_summary(logNormalFit)
+
+xVars <- str_subset(variables(logNormalFit), pattern = "b_")
+hypothesis(logNormalFit, paste(xVars, "= 0"), 
+           class = NULL, 
+           alpha = 0.1)
+
+hypothesis(logNormalFit, "sHWRF_1 = 0", class = "bs")
+hypID <- hypothesis(logNormalFit, 
+           "Intercept = 0", 
+           group = "StormID", 
+           scope = "coef")
+plot(hypID)
 
 #variance_decomposition(logNormalFit)
 #VarCorr(logNormalFit)
-
-### Multicollinearity ----
-check_collinearity(logNormalFit)
-
-### Check heteroskedasity ----
-check_heteroscedasticity(logNormalFit)
 
 ### Residuals ----
 fitResiduals <- 
@@ -390,6 +426,7 @@ predResiduals <-
     logNormalFit, 
     newdata = StormdataTestArcsinh,
     #newdata = StormdataTestYeo,
+    #newdata = StormdataTest2,
     method = "posterior_predict",
     allow_new_levels = TRUE,
     re_formula = NULL,
@@ -399,7 +436,7 @@ predResiduals <-
 mean(abs(predResiduals$Estimate))
 
 ## Posteriors ----
-logNormalFit <- Fit8
+#logNormalFit <- Fit8
 ### Training ----
 logNormalFitfinalFit <- posterior_predict(logNormalFit)
 # logNormalFitfinalResiduals <- t(StormdataTrain3$VMAX - t(logNormalFitfinalFit))
@@ -436,7 +473,7 @@ ppc_dens_overlay(y = testVMAX,
 
 ### Residuals ----
 xVarsCoef <- str_subset(variables(logNormalFit), pattern = "b_")
-xVars <- str_split_i(xVarsCoef, "_", i = 2)
+xVars <- str_split_i(xVarsCoef, "^[^_]+_", i = 2)
 xVars <- ifelse(str_detect(xVars, "basin"), "basin", 
                 ifelse(str_detect(xVars, "Land"), "Land", xVars))
 xVars <- xVars[-1]
@@ -447,7 +484,7 @@ for(i in xVars){
     ppcErrorPlotX <- ppc_error_scatter_avg_vs_x(
       y = trainVMAX,
       yrep = logNormalFitfinalFit[sample(1:sims, 100, replace = FALSE), ],
-      x = StormdataTrainArcsinh[[i]]
+      x = StormdataTrainArcsinh |> pull(contains(i))
     ) +
       labs(title = paste0("Avg Error ", i))
     ppcErrorPlotXlist[[i]] <- ppcErrorPlotX
@@ -468,22 +505,15 @@ for(i in xVars){
 
 wrap_plots(ppcErrorPlotXlist)
 
-predError <- predictive_error(
-  logNormalFit,
-  newdata = StormdataTestYeo,
-  allow_new_levels = TRUE,
-  re_formula = NULL
-)
-
 ### Smooth Effects ----
-# logNormalFitsmooths <- conditional_smooths(logNormalFit,
-#                                            method = "posterior_predict")
+#logNormalFitsmooths <- conditional_smooths(logNormalFit,
+                                          # method = "posterior_predict")
 # plot(logNormalFitsmooths, 
 #      stype = "raster", 
 #      ask = FALSE,
 #      theme = theme(legend.position = "bottom"))
-# plot(logNormalFitsmooths, 
-#      stype = "contour", 
+# plot(logNormalFitsmooths,
+#      stype = "contour",
 #      ask = FALSE,
 #      theme = theme(legend.position = "bottom"))
 
@@ -530,6 +560,48 @@ predMetricsComb <- bind_rows(
   logNormalFitpredMetrics
 )
 predMetricsComb #<- logNormalFitpredMetrics
+
+### Loo ----
+loo6 <- loo(Fit6)
+loo14 <- loo(Fit14)
+loo15 <- loo(Fit15)
+loo16 <- loo(Fit16)
+loo18 <- loo(Fit18)
+loo19 <- loo(Fit19)
+
+looComp <- loo_compare(
+  loo6,
+  loo14,
+  loo15,
+  loo16,
+  loo18,
+  loo19
+)
+looComp
+
+### CV ----
+set.seed(52)
+kfoldID <- kfold_split_grouped(K = 5, StormdataTrain$StormID)
+logNormalFitkfoldgroup <- kfold(Fit14,
+                                folds = kfoldID,
+                                chains = 1,
+                                save_fits = TRUE)
+save(logNormalFitkfoldgroup,
+     file = "~/Desktop/Temp Hurricane Model Data/logNormalFit14kfold.RData")
+logNormalFitkfoldPreds <- kfold_predict(logNormalFitkfoldgroup)
+logNormalFitkfoldPredsDat <- logNormalFitkfoldPreds$yrep
+logNormalFitkfoldPredsMean <- colMeans(logNormalFitkfoldPredsDat)
+logNormalFitkfoldPredsMed <- apply(logNormalFitkfoldPredsDat, 2, function(x){quantile(x, 0.5)})
+logNormalFitkfoldPredsLCB <- apply(logNormalFitkfoldPredsDat, 2, function(x){quantile(x, 0.025)})
+logNormalFitkfoldPredsUCB <- apply(logNormalFitkfoldPredsDat, 2, function(x){quantile(x, 0.975)})
+
+logNormalFitkfoldMetrics <- tibble(
+  Fit = paste0("logNormalFit", fit),
+  MAE_kfold = mean(abs(logNormalFitkfoldPredsMean - logNormalFitkfoldPreds$y)),
+  MAD_kfold = mean(abs(logNormalFitkfoldPredsMed - logNormalFitkfoldPreds$y)),
+  COV_kfold = mean(logNormalFitkfoldPredsLCB < logNormalFitkfoldPreds$y & logNormalFitkfoldPreds$y < logNormalFitkfoldPredsUCB)
+)
+logNormalFitkfoldMetrics
 
 ## State-Space Plots ----  
 ### Training ----
