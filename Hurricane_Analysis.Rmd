@@ -51,35 +51,50 @@ training_data <- Stormdata |> filter(complete.cases(VMAX))
 test_data <- Stormdata |> filter(!complete.cases(VMAX))
 ```
 
-# Data
+# Introduction
 
-The data for this analysis are from [A Feed Forward Neural Network Based on Model Output Statistics for Short-Term Hurricane Intensity Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml). The data variables descriptions are available [here](docs/data_description.pdf) related to 24-hour ahead forecasts of hurricane intensity. The response variable, $Y_i$, is the observed maximum wind velocity (VMAX) of a given hurricane StormID $S$ at observation $i$. The objective of this Bayesian analysis is to predict missing values of VMAX that are better predictions than the current model which is captured by the HWRF covariate in the data.
+The data for this analysis are from [A Feed Forward Neural Network Based on Model Output Statistics for Short-Term Hurricane Intensity Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml). The data variables descriptions are available [here](https://github.com/TylerPollard410/Hurricane-Analysis/blob/main/docs/data_description.pdf). This paper uses deep learning to improve 24-hour ahead forecasts of hurricane intensity (maximum wind velocity, VMAX). The main prediction model is [HWRF](https://www.aoml.noaa.gov/hurricane-weather-research-forecast-model/), which is a mathematical model based on differential equations. In addition to the forecast, HWRF has many other state variables such as sea surface temperature, longitude, time of year, etc, that are usually discarded. In this analysis, we will determine if including these state variables can improve the HWRF prediction.
 
-To begin we start with using the [shiny app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to explore the data.
+# Data Exploration (Shiny App)
+
+To begin this analysis, I created a [Hurricane Analysis app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to better understand and explore the data. The distribution of VMAX was plotted using the "Histogram" plot type, which revealed positive right skewness. The importance of spatial predictors like basin, Land, LAT, and LON can be viewed using the "Map" plot type. VMAX was plotted against all potential covariates and their transformed values to explore their relationship with the response and identify the best transformations to apply prior to model fitting.
 
 # Model Description
 
- The $p = 11$ covariates $X_{ij}$ that were fit to the model were LAT, MINSLP, SHR_MAG, STM_SPD, RHL0, CAPE3, INST2, TCONDSYM2, COUPLSYM3, HWFI, and HWRF. For an observation in storm $S$, we assume the linear model
+The response variable, $Y_i$, is the observed VMAX of observation $i$ with StormID index $S_i$ of a given hurricane. The $p = 20$ covariates $X_{ij}$ that were fit to the model were LAT, LON, basin, Land, MINSLP, SHR_MAG, STM_SPD, SST, RHL0, CAPE1, CAPE3, SHTFL2, TCOND7002, INST2, CP1, TCONDSYM2, COUPLSYM3, HWFI, VMAX_OP_T0, and HWRF. All covariates were normalized using a Yeo-Johnson transformation with centering and scaling. Due to the positive right skewness of VMAX, models were compared for Log-normal and Gamma likelihoods both with and without random effects.
+
+## Lognormal
 
 $$
 \begin{aligned}
-Y_i &= \beta_{0S} + \sum_{j=1}^{p}X_{ij}\beta_{jS} + \epsilon_{i} \\
+Y_{i} &\sim \text{LogNormal}(\mu_i, \sigma^2) \\
+\mu_i &= \beta_{0} + \sum_{j=1}^{p}X_{ij}\beta_{j} + \theta_{S_i} \\
+\theta_{S_i} &\sim \text{Normal}(0, \tau^2)
 \end{aligned}
 $$
 
-where $\beta_{jS}$ is the effect of covariate $j$ in Storm $S$. We compare three models for the $\beta_{jS}$
+## Gamma
 
-  1.) Constant slopes: $\beta_{jS} \equiv \beta_j$ for all Storms
-  
-  2.) Varying slopes with uninformative priors: $\beta_{jS} \sim Normal(0, 100)$
-  
-  3.) Varying slopes with informative priors: $\beta_{jS} \sim Normal(\mu_j, \sigma_j^2)$
-  
-Although the data for VMAX itself is not Gaussian, the errors are when it is regressed onto the predictors. Also with flat priors and large $n$ the Bayesian central limit can be invoked to approximate the posterior as Gaussian.
+$$
+\begin{aligned}
+Y_{i} &\sim \text{Gamma}(\alpha, \alpha/\mu_i) \\
+log(\mu_i) &= \beta_{0} + \sum_{j=1}^{p}X_{ij}\beta_{j} + \theta_{S_i} \\
+\theta_{S_i} &\sim \text{Normal}(0, \tau^2)
+\end{aligned}
+$$
+
+where $\beta_{j}$ is the effect of covariate $j$ with weakly informative priors $\beta_j \sim \text{Normal}(0,5)$. We set a non-informative prior on $\alpha \sim \text{InvGamma}(0.1, 0.1)$. In the random effects models, we set non-informative priors $\tau \sim \text{InvGamma}(0.1, 0.1)$.
 
 # Model Comparisons
 
-All three models above were fit to the data and I first checked that the models converged to an acceptable level. Once I confirmed that models did in fact converge, as seen in Figure 1, I compared the models based on DIC and WAIC to determine the best fitting model of the three. Based on Table 1, I chose to go forward with the slopes as random effects model because it had the smallest mean deviance which is a good sign that it will predict the best, although it was not as simple as the first model with constant slopes.
+All four models above were fit to the data and were first checked that the models converged to an acceptable level. Once convergence was confirmed, the models were compared based on WAIC to determine the model with the best expected predictive accuracy. Based on Table 1, I chose to go forward with the slopes as random effects model because it had the smallest mean deviance which is a good sign that it will predict the best, although it was not as simple as the first model with constant slopes.
+
+```{r WAIC}
+load(file = "_data/waicList.RData")
+
+waicListDf <- do.call(rbind, waicList)
+
+```
 
 ## Model Selection Criteria
 

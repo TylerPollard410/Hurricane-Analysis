@@ -299,35 +299,37 @@ formulaVMAX <-
   bf(VMAX ~ 
        #StormElapsedTime +
        LAT + 
-       #LON +  # Baseline spatial effects
-       #basin +
+       LON +  # Baseline spatial effects
+       basin +
        Land +  # Categorical spatial context
        MINSLP + 
        SHR_MAG +
        STM_SPD + 
        SST + 
        RHLO + 
-       #CAPE1 + 
+       CAPE1 + 
        CAPE3 + 
        SHTFL2 + 
-       #TCOND7002 + INST2 + 
+       TCOND7002 + INST2 + 
        CP1 + 
        TCONDSYM2 +
        COUPLSYM3 +  # Physical storm predictors
        HWFI +
-       #VMAX_OP_T0 +  # Operational estimates
+       VMAX_OP_T0 +  # Operational estimates
        HWRF +  # Benchmark
        (1 | StormID)#,  # Random effect for storm-specific variation
      #sigma ~ HWRF #+ HWFI + STM_SPD
      #nl = TRUE
-  ) + brmsfamily(family = "lognormal", link = "identity")
+  ) + brmsfamily(family = "Gamma", link = "log")
 
-default_prior(formulaVMAX, data = StormdataTrainArcsinh)
+default_prior(formulaVMAX, data = StormdataTrainYeo)
 
 priorsVMAX <- c(
   #prior(horseshoe(1), class = "b")
-  prior(normal(0, 2), class = "b")
-  #prior(constant(exp(1)), class = "b", coef = "HWRF")
+  prior(normal(0, 5), class = "b"),
+  #prior(inv_gamma(0.1, 0.1), class = "sigma"),
+  prior(inv_gamma(0.1, 0.1), class = "shape"),
+  prior(inv_gamma(0.1, 0.1), class = "sd")
 )
 
 ## Fit brms ----
@@ -339,8 +341,8 @@ sims <- (iters-burn)*chains
 system.time(
   logNormalFit <- brm(
     formulaVMAX,
-    data = StormdataTrainArcsinh,
-    #data = StormdataTrainYeo,
+    #data = StormdataTrainArcsinh,
+    data = StormdataTrainYeo,
     #data = StormdataTrain2,
     prior = priorsVMAX,
     save_pars = save_pars(all = TRUE), 
@@ -357,14 +359,28 @@ system.time(
 )
 
 ## Diagnostics ----
-fit <- 25
+fit <- 4
 assign(paste0("Fit", fit), logNormalFit)
-#logNormalFit <- Fit14
+#logNormalFit <- Fit1
 
-#plot(logNormalFit, ask = FALSE)
+plot(logNormalFit, ask = FALSE)
 #prior_summary(logNormalFit)
 
 print(logNormalFit, digits = 4)
+
+waicList <- list()
+waic <- waic(logNormalFit)
+attributes(waic)$model_name <- paste0("logNormalFit", fit)
+waicList[[paste0("fit", 4)]] <- waic4
+
+### Compare Candidate Models ----
+waicList
+
+loo_compare(
+  waicList 
+)
+
+save(waicList, file = "_data/waicList.RData")
 
 ### Multicollinearity ----
 check_collinearity(logNormalFit)

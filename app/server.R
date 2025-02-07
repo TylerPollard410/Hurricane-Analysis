@@ -151,6 +151,11 @@ PlotScatter <- function(x, y = "VMAX", transX = "None", scaleX = FALSE, transY =
             mutate(
                 across(!!sym(x), function(x){log(x + sqrt(x^2 + 1))})
             )
+    }else if(transX == "YeoJohnson"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){predict(yeojohnson(x, standardize = FALSE))})
+            )
     }
     
     # Scale X
@@ -171,6 +176,11 @@ PlotScatter <- function(x, y = "VMAX", transX = "None", scaleX = FALSE, transY =
         plotData <- plotData |>
             mutate(
                 across(!!sym(y), function(x){log(x + sqrt(x^2 + 1))})
+            )
+    }else if(transX == "YeoJohnson"){
+        plotData <- plotData |>
+            mutate(
+                across(!!sym(x), function(x){predict(yeojohnson(x, standardize = FALSE))})
             )
     }
     
@@ -431,7 +441,8 @@ shinyServer(function(input, output, session){
                     label = "Transform X",
                     choices = c("None",
                                 "Log", 
-                                "Arcsinh"),
+                                "Arcsinh",
+                                "YeoJohnson"),
                     individual = TRUE,
                     checkIcon = list(
                         yes = tags$i(class = "fa fa-check-square", 
@@ -457,7 +468,8 @@ shinyServer(function(input, output, session){
                     label = "Transform Y",
                     choices = c("None",
                                 "Log", 
-                                "Arcsinh"),
+                                "Arcsinh",
+                                "YeoJohnson"),
                     individual = TRUE,
                     checkIcon = list(
                         yes = tags$i(class = "fa fa-check-square", 

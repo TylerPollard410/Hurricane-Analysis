@@ -679,8 +679,14 @@ Object.defineProperty(e,"__esModule",{value:!0}),e.mhchemParser=void 0;var r=fun
 <!-- end custom head snippets -->
 
 <ul>
-<li><a href="#data">Data</a></li>
-<li><a href="#model-description">Model Description</a></li>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#data-exploration-shiny-app">Data Exploration (Shiny
+App)</a></li>
+<li><a href="#model-description">Model Description</a>
+<ul>
+<li><a href="#lognormal">Lognormal</a></li>
+<li><a href="#gamma">Gamma</a></li>
+</ul></li>
 <li><a href="#model-comparisons">Model Comparisons</a>
 <ul>
 <li><a href="#model-selection-criteria">Model Selection
@@ -690,48 +696,71 @@ Criteria</a></li>
 <li><a href="#variable-importance">Variable Importance</a></li>
 <li><a href="#prediction">Prediction</a></li>
 </ul>
-<h1 id="data">Data</h1>
+<h1 id="introduction">Introduction</h1>
 <p>The data for this analysis are from <a href="https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml">A
 Feed Forward Neural Network Based on Model Output Statistics for
 Short-Term Hurricane Intensity Prediction</a>. The data variables
-descriptions are available <a href="https://github.com/TylerPollard410/Hurricane-Analysis/main/docs/data_description.pdf">here</a>
-related to 24-hour ahead forecasts of hurricane intensity. The response
-variable, <span class="math inline">\(Y_i\)</span>, is the observed
-maximum wind velocity (VMAX) of a given hurricane StormID <span class="math inline">\(S\)</span> at observation <span class="math inline">\(i\)</span>. The objective of this Bayesian
-analysis is to predict missing values of VMAX that are better
-predictions than the current model which is captured by the HWRF
-covariate in the data.</p>
-<p>To begin we start with using the <a href="https://tylerpollard410.shinyapps.io/Hurricane_EDA/">shiny app</a>
-to explore the data.</p>
+descriptions are available <a href="https://github.com/TylerPollard410/Hurricane-Analysis/blob/main/docs/data_description.pdf">here</a>.
+This paper uses deep learning to improve 24-hour ahead forecasts of
+hurricane intensity (maximum wind velocity, VMAX). The main prediction
+model is <a href="https://www.aoml.noaa.gov/hurricane-weather-research-forecast-model/">HWRF</a>,
+which is a mathematical model based on differential equations. In
+addition to the forecast, HWRF has many other state variables such as
+sea surface temperature, longitude, time of year, etc, that are usually
+discarded. In this analysis, we will determine if including these state
+variables can improve the HWRF prediction.</p>
+<h1 id="data-exploration-shiny-app">Data Exploration (Shiny App)</h1>
+<p>To begin this analysis, I created a <a href="https://tylerpollard410.shinyapps.io/Hurricane_EDA/">Hurricane
+Analysis app</a> to better understand and explore the data. The
+distribution of VMAX was plotted using the “Histogram” plot type, which
+revealed positive right skewness. The importance of spatial predictors
+like basin, Land, LAT, and LON can be viewed using the “Map” plot type.
+VMAX was plotted against all potential covariates and their transformed
+values to explore their relationship with the response and identify the
+best transformations to apply prior to model fitting.</p>
 <h1 id="model-description">Model Description</h1>
-<p>The <span class="math inline">\(p = 11\)</span> covariates <span class="math inline">\(X_{ij}\)</span> that were fit to the model were
-LAT, MINSLP, SHR_MAG, STM_SPD, RHL0, CAPE3, INST2, TCONDSYM2, COUPLSYM3,
-HWFI, and HWRF. For an observation in storm <span class="math inline">\(S\)</span>, we assume the linear model</p>
+<p>The response variable, <span class="math inline">\(Y_i\)</span>, is
+the observed VMAX of observation <span class="math inline">\(i\)</span>
+with StormID index <span class="math inline">\(S_i\)</span> of a given
+hurricane. The <span class="math inline">\(p = 20\)</span> covariates
+<span class="math inline">\(X_{ij}\)</span> that were fit to the model
+were LAT, LON, basin, Land, MINSLP, SHR_MAG, STM_SPD, SST, RHL0, CAPE1,
+CAPE3, SHTFL2, TCOND7002, INST2, CP1, TCONDSYM2, COUPLSYM3, HWFI,
+VMAX_OP_T0, and HWRF. All covariates were normalized using a Yeo-Johnson
+transformation with centering and scaling. Due to the positive right
+skewness of VMAX, models were compared for Log-normal and Gamma
+likelihoods both with and without random effects.</p>
+<h2 id="lognormal">Lognormal</h2>
 <p><span class="math display">\[
 \begin{aligned}
-Y_i &amp;= \beta_{0S} + \sum_{j=1}^{p}X_{ij}\beta_{jS} + \epsilon_{i} \\
+Y_{i} &amp;\sim \text{LogNormal}(\mu_i, \sigma^2) \\
+\mu_i &amp;= \beta_{0} + \sum_{j=1}^{p}X_{ij}\beta_{j} + \theta_{S_i} \\
+\theta_{S_i} &amp;\sim \text{Normal}(0, \tau^2)
 \end{aligned}
 \]</span></p>
-<p>where <span class="math inline">\(\beta_{jS}\)</span> is the effect
-of covariate <span class="math inline">\(j\)</span> in Storm <span class="math inline">\(S\)</span>. We compare three models for the <span class="math inline">\(\beta_{jS}\)</span></p>
-<p>1.) Constant slopes: <span class="math inline">\(\beta_{jS} \equiv
-\beta_j\)</span> for all Storms</p>
-<p>2.) Varying slopes with uninformative priors: <span class="math inline">\(\beta_{jS} \sim Normal(0, 100)\)</span></p>
-<p>3.) Varying slopes with informative priors: <span class="math inline">\(\beta_{jS} \sim Normal(\mu_j,
-\sigma_j^2)\)</span></p>
-<p>Although the data for VMAX itself is not Gaussian, the errors are
-when it is regressed onto the predictors. Also with flat priors and
-large <span class="math inline">\(n\)</span> the Bayesian central limit
-can be invoked to approximate the posterior as Gaussian.</p>
+<h2 id="gamma">Gamma</h2>
+<p><span class="math display">\[
+\begin{aligned}
+Y_{i} &amp;\sim \text{Gamma}(\alpha, \alpha/\mu_i) \\
+log(\mu_i) &amp;= \beta_{0} + \sum_{j=1}^{p}X_{ij}\beta_{j} +
+\theta_{S_i} \\
+\theta_{S_i} &amp;\sim \text{Normal}(0, \tau^2)
+\end{aligned}
+\]</span></p>
+<p>where <span class="math inline">\(\beta_{j}\)</span> is the effect of
+covariate <span class="math inline">\(j\)</span> with weakly informative
+priors <span class="math inline">\(\beta_j \sim
+\text{Normal}(0,5)\)</span>. We set a non-informative prior on <span class="math inline">\(\alpha \sim \text{InvGamma}(0.1, 0.1)\)</span>. In
+the random effects models, we set non-informative priors <span class="math inline">\(\tau \sim \text{InvGamma}(0.1, 0.1)\)</span>.</p>
 <h1 id="model-comparisons">Model Comparisons</h1>
-<p>All three models above were fit to the data and I first checked that
-the models converged to an acceptable level. Once I confirmed that
-models did in fact converge, as seen in Figure 1, I compared the models
-based on DIC and WAIC to determine the best fitting model of the three.
-Based on Table 1, I chose to go forward with the slopes as random
-effects model because it had the smallest mean deviance which is a good
-sign that it will predict the best, although it was not as simple as the
-first model with constant slopes.</p>
+<p>All four models above were fit to the data and were first checked
+that the models converged to an acceptable level. Once convergence was
+confirmed, the models were compared based on WAIC to determine the model
+with the best expected predictive accuracy. Based on Table 1, I chose to
+go forward with the slopes as random effects model because it had the
+smallest mean deviance which is a good sign that it will predict the
+best, although it was not as simple as the first model with constant
+slopes.</p>
 <h2 id="model-selection-criteria">Model Selection Criteria</h2>
 <h1 id="goodness-of-fit">Goodness of Fit</h1>
 <p>To indicate the goodness of fit of the model, posterior predictive
