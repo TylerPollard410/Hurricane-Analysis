@@ -53,7 +53,7 @@ test_data <- Stormdata |> filter(!complete.cases(VMAX))
 
 # Data
 
-The data for this analysis are from [A Feed Forward Neural Network Based on Model Output Statistics for Short-Term Hurricane Intensity Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml). The data variables descriptions are available [here](https://github.com/TylerPollard410/Hurricane-Analysis/main/docs/data_description.pdf) related to 24-hour ahead forecasts of hurricane intensity. The response variable, $Y_i$, is the observed maximum wind velocity (VMAX) of a given hurricane StormID $S$ at observation $i$. The objective of this Bayesian analysis is to predict missing values of VMAX that are better predictions than the current model which is captured by the HWRF covariate in the data.
+The data for this analysis are from [A Feed Forward Neural Network Based on Model Output Statistics for Short-Term Hurricane Intensity Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml). The data variables descriptions are available [here](docs/data_description.pdf) related to 24-hour ahead forecasts of hurricane intensity. The response variable, $Y_i$, is the observed maximum wind velocity (VMAX) of a given hurricane StormID $S$ at observation $i$. The objective of this Bayesian analysis is to predict missing values of VMAX that are better predictions than the current model which is captured by the HWRF covariate in the data.
 
 To begin we start with using the [shiny app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to explore the data.
 
