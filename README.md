@@ -12,7 +12,8 @@ Tyler Pollard
 <!-- link rel="shortcut icon" type="image/x-icon" href="{{ '/favicon.ico' | relative_url }}" -->
 
 <!-- Change content width onfull screen -->
-<link rel="stylesheet" href="/assets/css/custom.css">
+<!-- <link rel="stylesheet" href="/Hurricane-Analysis/assets/css/custom.css"> -->
+
 
 <!-- MathJax -->
 <!-- inline config -->
@@ -39,7 +40,7 @@ Tyler Pollard
 
 <!-- end custom head snippets -->
 
-- [Exploratory Data Analysis](#exploratory-data-analysis)
+- [Data](#data)
 - [Model Description](#model-description)
 - [Model Comparisons](#model-comparisons)
   - [Model Selection Criteria](#model-selection-criteria)
@@ -47,7 +48,19 @@ Tyler Pollard
 - [Variable Importance](#variable-importance)
 - [Prediction](#prediction)
 
-# Exploratory Data Analysis
+# Data
+
+The data for this analysis are from [A Feed Forward Neural Network Based
+on Model Output Statistics for Short-Term Hurricane Intensity
+Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml).
+The data variables descriptions are available
+[here](https://github.com/TylerPollard410/Hurricane-Analysis/main/docs/data_description.pdf)
+related to 24-hour ahead forecasts of hurricane intensity. The response
+variable, $Y_i$, is the observed maximum wind velocity (VMAX) of a given
+hurricane StormID $S$ at observation $i$. The objective of this Bayesian
+analysis is to predict missing values of VMAX that are better
+predictions than the current model which is captured by the HWRF
+covariate in the data.
 
 To begin we start with using the [shiny
 app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to explore the
@@ -55,15 +68,10 @@ data.
 
 # Model Description
 
-The data for this analysis is related to 24-hour ahead forecasts of
-hurricane intensity. The response variable, $Y_i$, is the observed
-maximum wind velocity (VMAX) of a given hurricane StormID $S$ at
-observation $i$. The objective of this Bayesian analysis is to predict
-missing values of VMAX that are better predictions than the current
-model which is captured by the HWRF covariate in the data. The $p = 11$
-covariates $X_{ij}$ that were fit to the model were LAT, MINSLP,
-SHR_MAG, STM_SPD, RHL0, CAPE3, INST2, TCONDSYM2, COUPLSYM3, HWFI, and
-HWRF. For an observation in storm $S$, we assume the linear model
+The $p = 11$ covariates $X_{ij}$ that were fit to the model were LAT,
+MINSLP, SHR_MAG, STM_SPD, RHL0, CAPE3, INST2, TCONDSYM2, COUPLSYM3,
+HWFI, and HWRF. For an observation in storm $S$, we assume the linear
+model
 
 $$
 \begin{aligned}
