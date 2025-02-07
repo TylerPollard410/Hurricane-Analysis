@@ -1,0 +1,4 @@
+/* Adjust the width of the content container for wider screens */
+.inner {
+  max-width: 90%; /* Allow content to take 90% of the screen width */
+}

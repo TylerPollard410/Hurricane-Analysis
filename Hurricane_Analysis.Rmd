@@ -11,6 +11,7 @@ output:
       in_header: _includes/head.html
     toc: true
     toc_depth: 3
+  pdf_document:
 ---
 
 A Bayesian analysis of hurricane data from the National Hurricane Center.
