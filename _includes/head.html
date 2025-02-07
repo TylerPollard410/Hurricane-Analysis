@@ -6,6 +6,51 @@
 <!-- You can set your favicon here -->
 <!-- link rel="shortcut icon" type="image/x-icon" href="{{ '/favicon.ico' | relative_url }}" -->
 
+<!-- Meta viewport for responsive design -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- Custom Responsive CSS for Dynamic Width -->
+<style>
+  body {
+    width: 95%;
+    max-width: 1400px; /* Ensures content does not stretch too wide on large screens */
+    margin: auto;
+  }
+
+  .main-content, .container {
+    width: 100%;
+    max-width: 1200px;
+    margin: auto;
+  }
+
+  /* Adjust for medium-sized screens (laptops, tablets) */
+  @media screen and (max-width: 1200px) {
+    body {
+      width: 90%;
+      max-width: 1000px;
+    }
+  }
+
+  /* Adjust for smaller screens (tablets, small laptops) */
+  @media screen and (max-width: 992px) {
+    body {
+      width: 95%;
+      max-width: 850px;
+    }
+  }
+
+  /* Adjust for mobile screens */
+  @media screen and (max-width: 768px) {
+    body {
+      width: 100%;
+      max-width: 100%;
+      padding: 0 10px;
+    }
+  }
+</style>
+
+
+
 <!-- MathJax -->
 <!-- inline config -->
 <script>
