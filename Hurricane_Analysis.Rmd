@@ -14,8 +14,6 @@ output:
   pdf_document:
 ---
 
-A Bayesian analysis of hurricane data from the National Hurricane Center.
-
 ```{r setup, echo = FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```

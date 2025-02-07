@@ -47,9 +47,6 @@ Tyler Pollard
 - [Variable Importance](#variable-importance)
 - [Prediction](#prediction)
 
-A Bayesian analysis of hurricane data from the National Hurricane
-Center.
-
 # Exploratory Data Analysis
 
 To begin we start with using the [shiny
