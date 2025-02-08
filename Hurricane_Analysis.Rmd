@@ -192,7 +192,7 @@ To begin this analysis, I created a [Hurricane Analysis app](https://tylerpollar
 
 # Model Description
 
-The response variable, $Y_i$, is the observed VMAX of observation $i$ with StormID index $S_i$ of a given hurricane. The $p = 20$ covariates $X_{ij}$ that were fit to the model were LAT, LON, basin, Land, MINSLP, SHR_MAG, STM_SPD, SST, RHL0, CAPE1, CAPE3, SHTFL2, TCOND7002, INST2, CP1, TCONDSYM2, COUPLSYM3, HWFI, VMAX_OP_T0, and HWRF. All covariates were normalized using a Yeo-Johnson transformation with centering and scaling. Due to the positive right skewness of VMAX, models were compared for Log-normal and Gamma likelihoods both with and without random effects.
+The response variable, $Y_i$, is the observed VMAX of observation $i = 1, ..., n = 1705$ with StormID index $S_i = 1, ..., 87$ of a given hurricane. The $p = 20$ covariates $X_{ij}$ that were fit to the model were LAT, LON, basin, Land, MINSLP, SHR_MAG, STM_SPD, SST, RHL0, CAPE1, CAPE3, SHTFL2, TCOND7002, INST2, CP1, TCONDSYM2, COUPLSYM3, HWFI, VMAX_OP_T0, and HWRF. All covariates were normalized using a Yeo-Johnson transformation with centering and scaling. Due to the positive right skewness of VMAX, models were compared for Log-normal and Gamma likelihoods both with and without random effects.
 
 ## Lognormal
 
@@ -253,7 +253,7 @@ The Log-normal with random effects model was further refined to obtain a final m
 
 # Goodness of Fit
 
-To verify goodness of fit of the model, draws were made from the posterior predictive distribution (PPD) and posterior predictive checks (PPC) were examined for the mean, standard deviation, and range. These checks can be seen below with corresponding Bayesian p-values. The p-values are far enough away from 0 or 1 to confirm the model adequately fits the data.
+To verify goodness of fit of the model, draws were made from the posterior predictive distribution (PPD) and posterior predictive checks (PPC) were examined for the mean, standard deviation, and range. These checks can be seen below with corresponding Bayesian p-values. The p-values are far enough away from 0 or 1 to confirm the model adequately fits the data. The empirical distribution of the observed data also appears to fall within the simulated distributions from the PPD draws.
 
 ```{r GOF, fig.align='center', fig.cap="Posterior Predictive Checks for Log-normal Random Effects Model"}
 load(file = "_data/logNormalFitFINAL.RData")
@@ -352,8 +352,87 @@ logNormalFitfinal_ppcComb
 
 # Variable Importance
 
-After fitting the model with random slopes with informative priors, the importance of the covariates changed drastically in terms of what is most important. The mean, standard deviation, and 95% credible set on each parameter is displayed for both the posterior of model 1 and model 3 after pooling over the storm IDs. In the model that treated the slopes as constant across storms, every parameter had a significant effect other than MINSLP according the the 95\% credible interval. However, in model 3 when the slopes are treated as random effects and estimated from the data, the only important variables are HWRF and HWFI. We were told that HWRF would be a very important variable, but we may have another one that can improve the predictions of VMAX across storms. Since VMAX is log-normally distributed, both HWRF and HWFI increase VMAX about 8\%.
+After fitting the final model with random intercepts and weakly informative priors, the importance of the covariates was examined. The mean, standard deviation, and 95% credible set on each parameter is displayed for the posterior after partially pooling over the storm IDs. Since all covariates were center and scaled, the magnitude of the posterior means allow for direct comparison of covariate importance. From Table 2 below, the most important covariates from the model on VMAX were Land, HWFI, and HWRF. From the problem description, it is not suprising that HWRF was one of the most important covariates in modeling VMAX due to it being a prior model for VMAX already. However, it appears that HWFI actually is more important in this model for VMAX compared to HWRF.
+
+```{r Var}
+finalFitSum <- print(logNormalFitFINAL, digits = 4)
+finalFitFixed <- finalFitSum$fixed
+finalFitRand <- finalFitSum$random$StormID
+
+finalFitFixed |>
+  select(
+    Mean = Estimate, 
+    SD = Est.Error, 
+    `Q2.5` = `l-95% CI`,
+    `Q97.5` = `u-95% CI`
+  ) |>
+  round(digits = 4) |>
+  rownames_to_column(var = "Parameter") |>
+  gt() |>
+  tab_header(
+    title = "Table 2: Posterior summary for model parameters"
+  ) |>
+  tab_style(
+    style = list(
+      cell_borders(sides = "right")
+    ),
+    locations = list(
+      cells_body(columns = Parameter),
+      cells_column_labels(columns = Parameter)
+    )
+  ) |>
+  tab_options(
+    table.align = "center"
+  ) |>
+  as_raw_html()
+```
 
 # Prediction
 
-The posterior predictive distributions were output for the $\beta_{js}$ and $\sigma_i$ parameters. Using these PPD's to draw new values for the new values for the covariates and StormIDs that were not present in the training data set, new data was simulated. For each new observation, the posterior predictive distribution was determined and posterior predictive checks were conducted for the mean and 95\% credible set from $S = 20000$ iterations of MCMC sampling. The Bayesian p-values from the posterior predictive checks were 0.35029940, 0.68263473, and 0.04041916 for the mean, lower bound, and upper bound, respectively when compared to the observed values of the original data set. This is not a one-to-one comparison, but gives a good idea of a decent fit and prediction of the new observations.
+In the data that was delivered for this project, there were an additional 668 observations with missing VMAX for which a posterior predictive mean and 95\% credible interval were computed. To estimate the predictive accuracy of these model predictions, 5-fold cross-validation (CV) was used to estimate the mean absolute error (i.e., the average of $|VMAX_i - \widehat{VMAX_i}|$ for the $i$ observations) and coverage (COV) of 95\% intervals. The 1705 observations were split into 5 approximately equal folds split by randomly selected StormIDs to mimic the prediction of entirely new hurricanes. Along with the predictions from cross-validation, predictions were made using the PPD from the model treating the fit observations as missing for comparison. The prediction metrics from both methods are Table 3 below. The MAE from CV was 8.825, which is about a 12\% improvement in prediction accuracy for the Log-normal Random Effects model over the HWRF model alone.
+
+```{r pred A}
+logNormalFitpredMetrics <- tibble(
+  Method = "Model PPD",
+  MAE_HWRF = mean(abs(StormdataTrain$HWRF - StormdataTrain$VMAX)),
+  MAE_Model = mean(abs(logNormalFitfinalFitMean - StormdataTrain$VMAX)),
+  COV = mean(logNormalFitfinalFitLCB < StormdataTrain$VMAX & StormdataTrain$VMAX < logNormalFitfinalFitUCB)
+)
+
+load(file = "_data/logNormalFitKfold.RData")
+load(file = "_data/logNormalFitKfoldMetrics.RData")
+
+predMetricDF <- bind_rows(
+  logNormalFitpredMetrics,
+  logNormalFitkfoldMetrics |> 
+    select(
+      MAE_HWRF,
+      MAE_Model = MAE_kfold,
+      COV = COV_kfold
+    ) |>
+    mutate(
+      Method = "5-fold CV",
+      .before = 1
+    )
+)
+
+predMetricDF |>
+  gt() |>
+  tab_header(
+    title = "Table 3: Prediction metrics"
+  ) |>
+  tab_style(
+    style = list(
+      cell_borders(sides = "right")
+    ),
+    locations = list(
+      cells_body(columns = Method),
+      cells_column_labels(columns = Method)
+    )
+  ) |>
+  tab_options(
+    table.align = "center"
+  ) |>
+  as_raw_html()
+```
+
