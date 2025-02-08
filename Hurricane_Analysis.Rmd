@@ -354,8 +354,8 @@ logNormalFitfinal_ppcComb
 
 After fitting the final model with random intercepts and weakly informative priors, the importance of the covariates was examined. The mean, standard deviation, and 95% credible set on each parameter is displayed for the posterior after partially pooling over the storm IDs. Since all covariates were center and scaled, the magnitude of the posterior means allow for direct comparison of covariate importance. From Table 2 below, the most important covariates from the model on VMAX were Land, HWFI, and HWRF. From the problem description, it is not suprising that HWRF was one of the most important covariates in modeling VMAX due to it being a prior model for VMAX already. However, it appears that HWFI actually is more important in this model for VMAX compared to HWRF.
 
-```{r Var}
-finalFitSum <- print(logNormalFitFINAL, digits = 4)
+```{r Var, }
+finalFitSum <- summary(logNormalFitFINAL, digits = 4)
 finalFitFixed <- finalFitSum$fixed
 finalFitRand <- finalFitSum$random$StormID
 
@@ -371,6 +371,10 @@ finalFitFixed |>
   gt() |>
   tab_header(
     title = "Table 2: Posterior summary for model parameters"
+  ) |>
+  cols_align(
+    align = "center",
+    columns = c(everything(), -Parameter)
   ) |>
   tab_style(
     style = list(
@@ -389,7 +393,7 @@ finalFitFixed |>
 
 # Prediction
 
-In the data that was delivered for this project, there were an additional 668 observations with missing VMAX for which a posterior predictive mean and 95\% credible interval were computed. To estimate the predictive accuracy of these model predictions, 5-fold cross-validation (CV) was used to estimate the mean absolute error (i.e., the average of $|VMAX_i - \widehat{VMAX_i}|$ for the $i$ observations) and coverage (COV) of 95\% intervals. The 1705 observations were split into 5 approximately equal folds split by randomly selected StormIDs to mimic the prediction of entirely new hurricanes. Along with the predictions from cross-validation, predictions were made using the PPD from the model treating the fit observations as missing for comparison. The prediction metrics from both methods are Table 3 below. The MAE from CV was 8.825, which is about a 12\% improvement in prediction accuracy for the Log-normal Random Effects model over the HWRF model alone.
+In the data that was delivered for this project, there were an additional 668 observations with missing VMAX for which a posterior predictive mean and 95\% credible interval were computed. To estimate the predictive accuracy of these model predictions, 5-fold cross-validation (CV) was used to estimate the mean absolute error (i.e., the average of $|VMAX_i - \widehat{VMAX_i}|$ for the $i$ observations) and coverage (COV) of 95\% intervals. The 1705 observations were split into 5 approximately equal folds split by randomly selected StormIDs to mimic the prediction of entirely new hurricanes. Along with the predictions from cross-validation, predictions were made using the PPD from the model treating the fit observations as missing for comparison. The prediction metrics from both methods are Table 3 below. The coverage of 0.952 provides strong evidence that the model predicts new data well as it captured almost exactly the identified proportion of data expected from a 95\% credible interval. The MAE of 8.825 from CV, which is about a 12\% improvement in prediction accuracy, further solidifies the preference for the Log-normal Random Effects model over the HWRF model alone. 
 
 ```{r pred A}
 logNormalFitpredMetrics <- tibble(
@@ -410,6 +414,7 @@ predMetricDF <- bind_rows(
       MAE_Model = MAE_kfold,
       COV = COV_kfold
     ) |>
+    round(digits = 3) |>
     mutate(
       Method = "5-fold CV",
       .before = 1
@@ -420,6 +425,10 @@ predMetricDF |>
   gt() |>
   tab_header(
     title = "Table 3: Prediction metrics"
+  ) |>
+  cols_align(
+    align = "center",
+    columns = -Method
   ) |>
   tab_style(
     style = list(
