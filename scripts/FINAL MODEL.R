@@ -3,7 +3,6 @@ library(knitr)
 library(data.table)
 library(MASS)
 library(bestNormalize)
-library(rjags)
 library(plyr)
 library(stringr)
 library(lubridate)
@@ -27,6 +26,8 @@ library(loo)
 library(brms)
 library(bayesplot)
 library(performance)
+library(gt)
+library(gtsummary)
 library(tidyverse)
 
 # Read in data ----
@@ -70,12 +71,6 @@ Stormdata1 <- Stormdata_raw |>
     everything(),
     -lead_time
   )
-
-# Create Date vars
-# dataYears <- year(Stormdata$Date)
-# dataMonths <- month(Stormdata$Date, label = TRUE)
-# dataDays <- day(Stormdata$Date)
-# dataYearDay <- yday(Stormdata$Date)
 
 ### Land Indicator ----
 pts <- st_as_sf(Stormdata1, # |> select(LON, LAT), 
@@ -181,18 +176,18 @@ corData <- cor(StormdataTrain |> select(where(is.numeric)))
 
 ### Regular ----
 preProc <- preProcess(StormdataTrain |> 
-                           select(
-                             where(is.numeric),
-                             -VMAX
-                             #-StormElapsedTime,
-                             #-LAT,
-                             #-LON
-                           ),
-                         method = c("scale", "center"))
-preProc
+                        select(
+                          where(is.numeric),
+                          -VMAX
+                          #-StormElapsedTime,
+                          #-LAT,
+                          #-LON
+                        ),
+                      method = c("scale", "center"))
+#preProc
 StormdataTrain2 <- predict(preProc, StormdataTrain)
 StormdataTes2 <- predict(preProc, StormdataTest)
-colnames(StormdataTrain)
+#colnames(StormdataTrain)
 
 ### YeoJohnson ----
 preProcYeo <- preProcess(StormdataTrain |> 
@@ -205,10 +200,10 @@ preProcYeo <- preProcess(StormdataTrain |>
                              #-LON
                            ),
                          method = c("scale", "center", "YeoJohnson"))
-preProcYeo
+#preProcYeo
 StormdataTrainYeo <- predict(preProcYeo, StormdataTrain)
 StormdataTestYeo <- predict(preProcYeo, StormdataTest)
-colnames(StormdataTrainYeo)
+#colnames(StormdataTrainYeo)
 
 preProcYeoCorr <- preProcess(StormdataTrain |> 
                                select(
@@ -219,10 +214,10 @@ preProcYeoCorr <- preProcess(StormdataTrain |>
                                  -LON
                                ),
                              method = c("scale", "center", "corr", "YeoJohnson"))
-preProcYeoCorr
+#preProcYeoCorr
 StormdataTrainYeoB <- predict(preProcYeoCorr, StormdataTrain)
 StormdataTestYeoB <- predict(preProcYeoCorr, StormdataTest)
-colnames(StormdataTrainYeoB)
+#colnames(StormdataTrainYeoB)
 
 
 ### Arcsinh ----
@@ -251,7 +246,7 @@ preProcArcsinh <- preProcess(StormdataTrainArcsinhPre |>
                                  #-LON
                                ),
                              method = c("scale", "center"))
-preProcArcsinh
+#preProcArcsinh
 StormdataTrainArcsinh <- predict(preProcArcsinh, StormdataTrainArcsinhPre)
 StormdataTestArcsinh <- predict(preProcArcsinh, StormdataTestArcsinhPre)
 
@@ -265,7 +260,7 @@ preProcArcsinhCorr <- preProcess(StormdataTrainArcsinhPre |>
                                      -LON
                                    ),
                                  method = c("scale", "center", "corr"))
-preProcArcsinhCorr
+#preProcArcsinhCorr
 StormdataTrainArcsinhB <- predict(preProcArcsinhCorr, StormdataTrainArcsinhPre)
 StormdataTestArcsinhB <- predict(preProcArcsinhCorr, StormdataTestArcsinhPre)
 
@@ -297,90 +292,115 @@ StormdataTestArcsinhB <- predict(preProcArcsinhCorr, StormdataTestArcsinhPre)
 
 formulaVMAX <- 
   bf(VMAX ~ 
-       #StormElapsedTime +
-       LAT + 
-       LON +  # Baseline spatial effects
-       basin +
-       Land +  # Categorical spatial context
-       MINSLP + 
+       #LAT + 
+       #LON + 
+       #basin +
+       Land +  
+       #MINSLP + 
        SHR_MAG +
-       STM_SPD + 
-       SST + 
+       #STM_SPD + 
+       #SST + 
        RHLO + 
-       CAPE1 + 
+       #CAPE1 + 
        CAPE3 + 
-       SHTFL2 + 
-       TCOND7002 + INST2 + 
+       #SHTFL2 + 
+       #TCOND7002 + 
+       #INST2 + 
        CP1 + 
        TCONDSYM2 +
-       COUPLSYM3 +  # Physical storm predictors
+       COUPLSYM3 + 
        HWFI +
-       VMAX_OP_T0 +  # Operational estimates
-       HWRF +  # Benchmark
-       (1 | StormID)#,  # Random effect for storm-specific variation
+       #VMAX_OP_T0 +  
+       HWRF +  
+       (1 | StormID)  # Random effect for storm-specific variation
      #sigma ~ HWRF #+ HWFI + STM_SPD
-     #nl = TRUE
-  ) + brmsfamily(family = "Gamma", link = "log")
+  ) + brmsfamily(family = "lognormal", link = "identity")
 
 default_prior(formulaVMAX, data = StormdataTrainYeo)
 
-priorsVMAX <- c(
-  #prior(horseshoe(1), class = "b")
-  prior(normal(0, 5), class = "b"),
-  #prior(inv_gamma(0.1, 0.1), class = "sigma"),
-  prior(inv_gamma(0.1, 0.1), class = "shape"),
-  prior(inv_gamma(0.1, 0.1), class = "sd")
-)
+# priorsVMAX <- c(
+#   #prior(horseshoe(1), class = "b")
+#   prior(normal(0, 5), class = "b"),
+#   prior(inv_gamma(0.1, 0.1), class = "sigma")
+#   #prior(inv_gamma(0.1, 0.1), class = "shape"),
+#   #prior(inv_gamma(0.1, 0.1), class = "sd")
+# )
 
 ## Fit brms ----
-iters <- 3000
-burn <- 1000
+iters <- 4000
+burn <- 2000
 chains <- 2
 sims <- (iters-burn)*chains
 
-system.time(
-  logNormalFit <- brm(
-    formulaVMAX,
-    #data = StormdataTrainArcsinh,
-    data = StormdataTrainYeo,
-    #data = StormdataTrain2,
-    prior = priorsVMAX,
-    save_pars = save_pars(all = TRUE), 
-    chains = chains,
-    iter = iters,
-    cores = parallel::detectCores(),
-    seed = 52,
-    warmup = burn,
-    #init = 0,
-    normalize = FALSE,
-    control = list(adapt_delta = 0.95),
-    backend = "cmdstanr"
-  )
+#system.time(
+Fit <- brm(
+  formulaVMAX,
+  data = StormdataTrainYeo,
+  prior = c(
+    #prior(horseshoe(1), class = "b")
+    prior(normal(0, 5), class = "b"),
+    prior(inv_gamma(0.1, 0.1), class = "sigma"),
+    #prior(inv_gamma(0.1, 0.1), class = "b", dpar = "sigma", lb = 0),
+    #prior(inv_gamma(0.1, 0.1), class = "shape"),
+    prior(inv_gamma(0.1, 0.1), class = "sd")
+  ),
+  save_pars = save_pars(all = TRUE), 
+  chains = chains,
+  iter = iters,
+  cores = parallel::detectCores(),
+  seed = 52,
+  warmup = burn,
+  #init = 0,
+  normalize = FALSE,
+  control = list(adapt_delta = 0.95),
+  backend = "cmdstanr"
 )
+#)
+
+#logNormalFit <- Fit
+#logNormalRandFit <- Fit
+#gammaFit <- Fit
+#gammaRandFit <- Fit
+
+#save(logNormalFit, file = "_data/logNormalFit.RData")
+#save(logNormalRandFit, file = "_data/logNormalRandFit.RData")
+#save(gammaFit, file = "_data/gammaFit.RData")
+#save(gammaRandFit, file = "_data/gammaRandFit.RData")
 
 ## Diagnostics ----
-fit <- 4
-assign(paste0("Fit", fit), logNormalFit)
-#logNormalFit <- Fit1
+fit <- 1
+assign(paste0("Fit", fit), Fit)
+logNormalFitFINAL <- Fit
+save(logNormalFitFINAL, file = "_data/logNormalFitFINAL.RData")
 
 plot(logNormalFit, ask = FALSE)
 #prior_summary(logNormalFit)
 
 print(logNormalFit, digits = 4)
 
-waicList <- list()
-waic <- waic(logNormalFit)
-attributes(waic)$model_name <- paste0("logNormalFit", fit)
-waicList[[paste0("fit", 4)]] <- waic4
+# waicList <- list(
+#   waic(logNormalFit),
+#   waic(logNormalRandFit),
+#   waic(gammaFit),
+#   waic(gammaRandFit)
+# )
+#waic <- waic(logNormalFit)
+#attributes(waic)$model_name <- paste0("logNormalFit", fit)
+#waicList[[paste0("fit", 4)]] <- waic4
 
 ### Compare Candidate Models ----
-waicList
-
-loo_compare(
-  waicList 
+# waicList
+# 
+waicListComp <- loo_compare(
+  waicList
 )
+waicListComp <- waicListComp |>
+  data.frame() |>
+  rownames_to_column(var = "Model")
 
-save(waicList, file = "_data/waicList.RData")
+save(waicList, waicListComp, file = "_data/waicComps.RData")
+
+
 
 ### Multicollinearity ----
 check_collinearity(logNormalFit)
@@ -418,9 +438,9 @@ hypothesis(logNormalFit, paste(xVars, "= 0"),
 
 hypothesis(logNormalFit, "sHWRF_1 = 0", class = "bs")
 hypID <- hypothesis(logNormalFit, 
-           "Intercept = 0", 
-           group = "StormID", 
-           scope = "coef")
+                    "Intercept = 0", 
+                    group = "StormID", 
+                    scope = "coef")
 plot(hypID)
 
 #variance_decomposition(logNormalFit)
@@ -440,8 +460,8 @@ mean(abs(fitResiduals$Estimate))
 predResiduals <- 
   residuals(
     logNormalFit, 
-    newdata = StormdataTestArcsinh,
-    #newdata = StormdataTestYeo,
+    #newdata = StormdataTestArcsinh,
+    newdata = StormdataTestYeo,
     #newdata = StormdataTest2,
     method = "posterior_predict",
     allow_new_levels = TRUE,
@@ -464,7 +484,7 @@ logNormalFitfinalFitUCB <- apply(logNormalFitfinalFit, 2, function(x){quantile(x
 
 ### Prediction ----
 logNormalFitfinalPreds <- posterior_predict(logNormalFit, 
-                                            newdata = StormdataTestArcsinh,
+                                            newdata = StormdataTestYeo,
                                             #newdata = StormdataTestYeo,
                                             allow_new_levels = TRUE, 
                                             re_formula = NULL)
@@ -483,9 +503,176 @@ ppc_dens_overlay(y = trainVMAX,
                  yrep = logNormalFitfinalFit[sample(1:sims, 100, replace = FALSE), ]) +
   labs(title = paste0("Fit", fit, " PPC"))
 
+logNormalFitfinalppcFit <- ppc_dens_overlay(
+  y = trainVMAX,
+  yrep = logNormalFitfinalFit[sample(1:sims, 1000, replace = FALSE), ]
+) +
+  labs(title = "Simulated density of draws from the PPD vs Observed VMAX",
+       subtitle = "n = 1000 draws",
+       x = "VMAX",
+       y = "Density") +
+  scale_x_continuous(limits = c(0, 250), breaks = seq(0, 250, 25)) +
+  theme_bw()
+logNormalFitfinalppcFit
+
 ppc_dens_overlay(y = testVMAX,
                  yrep = logNormalFitfinalPreds[sample(1:sims, 100, replace = FALSE), ]) +
   labs(title = paste0("Fit", fit, " PPD"))
+
+#### Quantile 2.5 ----
+logNormalFitfinalLCBsims <- apply(logNormalFitfinalFit, 
+                                  MARGIN = 1,
+                                  function(x){
+                                    quantile(x, 0.025)
+                                  })
+logNormalFitfinalLCBpvalueVec <- logNormalFitfinalLCBsims < quantile(StormdataTrain$VMAX, 0.025)
+logNormalFitfinalLCBpvalue <- sum(logNormalFitfinalLCBpvalueVec)
+logNormalFitfinalLCBpvalue <- round(logNormalFitfinalLCBpvalue/sims, 3)
+logNormalFitfinalLCBpvalue <- min(logNormalFitfinalLCBpvalue, 1 - logNormalFitfinalLCBpvalue)
+
+logNormalFitfinal_ppcLCB <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) quantile(y, 0.025), freq = FALSE) +
+  labs(title = paste0("2.5% Quantile (p-val = ", logNormalFitfinalLCBpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFitfinal_ppcLCB
+
+t <- ppc_stat(
+  y = trainVMAX,
+  yrep = logNormalFitfinalFit[sample(1:sims, 1000, replace = FALSE), ], 
+  stat = function(y) quantile(y, 0.025)
+  )
+
+#### Quantile 97.5 ----
+logNormalFitfinalUCBsims <- apply(logNormalFitfinalFit, 
+                                  MARGIN = 1,
+                                  function(x){
+                                    quantile(x, 0.975)
+                                  })
+logNormalFitfinalUCBpvalueVec <- logNormalFitfinalUCBsims < quantile(StormdataTrain$VMAX, 0.975)
+logNormalFitfinalUCBpvalue <- as.numeric(sum(logNormalFitfinalUCBpvalueVec))
+logNormalFitfinalUCBpvalue <- round(logNormalFitfinalUCBpvalue/sims, 3)
+logNormalFitfinalUCBpvalue <- min(logNormalFitfinalUCBpvalue, 1 - logNormalFitfinalUCBpvalue)
+
+logNormalFitfinal_ppcUCB <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) quantile(y, 0.975), freq = FALSE) +
+  labs(title = paste0("97.5% Quantile (p-val = ", logNormalFitfinalUCBpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFitfinal_ppcUCB
+
+#### Mean ----
+logNormalFitfinalMEANsims <- apply(logNormalFitfinalFit, 
+                                   MARGIN = 1,
+                                   function(x){
+                                     mean(x)
+                                   })
+logNormalFitfinalMEANpvalueVec <- logNormalFitfinalMEANsims < mean(StormdataTrain$VMAX)
+logNormalFitfinalMEANpvalue <- sum(logNormalFitfinalMEANpvalueVec)
+logNormalFitfinalMEANpvalue <- round(logNormalFitfinalMEANpvalue/sims, 3)
+logNormalFitfinalMEANpvalue <- min(logNormalFitfinalMEANpvalue, 1 - logNormalFitfinalMEANpvalue)
+
+logNormalFitfinal_ppcMEAN <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) mean(y), freq = FALSE) +
+  labs(title = paste0("Mean (p-val = ", logNormalFitfinalMEANpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFitfinal_ppcMEAN
+save(logNormalFitfinal_ppcMEAN, file = "_data/PPCplotMean.RData")
+
+#### Med ----
+logNormalFitfinalMEDsims <- apply(logNormalFitfinalFit, 
+                                  MARGIN = 1,
+                                  function(x){
+                                    quantile(x, 0.5)
+                                  })
+logNormalFitfinalMEDpvalueVec <- logNormalFitfinalMEDsims < quantile(StormdataTrain$VMAX, 0.5)
+logNormalFitfinalMEDpvalue <- sum(logNormalFitfinalMEDpvalueVec)
+logNormalFitfinalMEDpvalue <- round(logNormalFitfinalMEDpvalue/sims, 3)
+logNormalFitfinalMEDpvalue <- min(logNormalFitfinalMEDpvalue, 1 - logNormalFitfinalMEDpvalue)
+
+logNormalFitfinal_ppcMED <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) quantile(y, 0.5), freq = FALSE) +
+  labs(title = paste0("Median (p-val = ", logNormalFitfinalMEDpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFitfinal_ppcMED
+
+#### SD ----
+logNormalFitfinalSDsims <- apply(logNormalFitfinalFit, 
+                                 MARGIN = 1,
+                                 function(x){
+                                   sd(x)
+                                 })
+logNormalFitfinalSDpvalueVec <- logNormalFitfinalSDsims < sd(StormdataTrain$VMAX)
+logNormalFitfinalSDpvalue <- sum(logNormalFitfinalSDpvalueVec)
+logNormalFitfinalSDpvalue <- round(logNormalFitfinalSDpvalue/sims, 3)
+logNormalFitfinalSDpvalue <- min(logNormalFitfinalSDpvalue, 1 - logNormalFitfinalSDpvalue)
+
+logNormalFitfinal_ppcSD <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) sd(y), freq = FALSE) +
+  labs(title = paste0("SD (p-val = ", logNormalFitfinalSDpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+#logNormalFitfinal_ppcSD
+save(logNormalFitfinal_ppcSD, file = "_data/PPCplotSD.RData")
+
+#### Range ----
+logNormalFitfinalRANGEsims <- apply(logNormalFitfinalFit, 
+                                    MARGIN = 1,
+                                    function(x){
+                                      max(x)-min(x)
+                                    })
+logNormalFitfinalRANGEpvalueVec <- logNormalFitfinalRANGEsims < (max(StormdataTrain$VMAX)-min(StormdataTrain$VMAX))
+logNormalFitfinalRANGEpvalue <- sum(logNormalFitfinalRANGEpvalueVec)
+logNormalFitfinalRANGEpvalue <- round(logNormalFitfinalRANGEpvalue/sims, 3)
+logNormalFitfinalRANGEpvalue <- min(logNormalFitfinalRANGEpvalue, 1 - logNormalFitfinalRANGEpvalue)
+
+logNormalFitfinal_ppcRANGE <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) max(y)-min(y), freq = FALSE) +
+  labs(title = paste0("Range (p-val = ", logNormalFitfinalRANGEpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+save(logNormalFitfinal_ppcRANGE, file = "_data/PPCplotRange.RData")
+
+### Combined Plot ----
+logNormalFitfinal_ppcComb <- 
+  logNormalFitfinalppcFit /
+  (logNormalFitfinal_ppcLCB | logNormalFitfinal_ppcMED | logNormalFitfinal_ppcUCB) /
+  (logNormalFitfinal_ppcRANGE | logNormalFitfinal_ppcMEAN | logNormalFitfinal_ppcSD)
+logNormalFitfinal_ppcComb
+
+logNormalFitfinal_ppcComb <- 
+  logNormalFitfinalppcFit /
+  (logNormalFitfinal_ppcMEAN | logNormalFitfinal_ppcSD | logNormalFitfinal_ppcRANGE)
+logNormalFitfinal_ppcComb
+
+save(logNormalFitfinal_ppcComb,
+     file = "_data/PPCplot.RData")
+
+### Bayes p-values ----
+logNormalFitNULLpvalues <- tibble(
+  Fit = paste0("logNormalFitNULL"),
+  LCB = logNormalFitNULLLCBpvalue,
+  Median = logNormalFitNULLMEDpvalue,
+  UCB = logNormalFitNULLUCBpvalue,
+  Range = logNormalFitNULLRANGEpvalue,
+  Mean = logNormalFitNULLMEANpvalue,
+  SD = logNormalFitNULLSDpvalue
+)
+logNormalFitNULLpvalues
 
 ### Residuals ----
 xVarsCoef <- str_subset(variables(logNormalFit), pattern = "b_")
@@ -523,7 +710,7 @@ wrap_plots(ppcErrorPlotXlist)
 
 ### Smooth Effects ----
 #logNormalFitsmooths <- conditional_smooths(logNormalFit,
-                                          # method = "posterior_predict")
+# method = "posterior_predict")
 # plot(logNormalFitsmooths, 
 #      stype = "raster", 
 #      ask = FALSE,
@@ -598,12 +785,12 @@ looComp
 ### CV ----
 set.seed(52)
 kfoldID <- kfold_split_grouped(K = 5, StormdataTrain$StormID)
-logNormalFitkfoldgroup <- kfold(Fit14,
+logNormalFitkfoldgroup <- kfold(logNormalFit,
                                 folds = kfoldID,
                                 chains = 1,
                                 save_fits = TRUE)
 save(logNormalFitkfoldgroup,
-     file = "~/Desktop/Temp Hurricane Model Data/logNormalFit14kfold.RData")
+     file = "_data/logNormalFitKfold.RData")
 logNormalFitkfoldPreds <- kfold_predict(logNormalFitkfoldgroup)
 logNormalFitkfoldPredsDat <- logNormalFitkfoldPreds$yrep
 logNormalFitkfoldPredsMean <- colMeans(logNormalFitkfoldPredsDat)
@@ -613,11 +800,14 @@ logNormalFitkfoldPredsUCB <- apply(logNormalFitkfoldPredsDat, 2, function(x){qua
 
 logNormalFitkfoldMetrics <- tibble(
   Fit = paste0("logNormalFit", fit),
+  MAE_HWRF = mean(abs(StormdataTrain$HWRF - StormdataTrain$VMAX)),
   MAE_kfold = mean(abs(logNormalFitkfoldPredsMean - logNormalFitkfoldPreds$y)),
   MAD_kfold = mean(abs(logNormalFitkfoldPredsMed - logNormalFitkfoldPreds$y)),
   COV_kfold = mean(logNormalFitkfoldPredsLCB < logNormalFitkfoldPreds$y & logNormalFitkfoldPreds$y < logNormalFitkfoldPredsUCB)
 )
 logNormalFitkfoldMetrics
+save(logNormalFitkfoldMetrics,
+     file = "_data/logNormalFitKfoldMetrics.RData")
 
 ## State-Space Plots ----  
 ### Training ----
