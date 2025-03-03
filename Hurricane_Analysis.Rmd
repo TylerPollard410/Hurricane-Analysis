@@ -1,5 +1,4 @@
 ---
-title: "Hurricane Analysis"
 author: "Tyler Pollard"
 date: "2024-08-25"
 header-includes:
@@ -7,8 +6,8 @@ header-includes:
 output:  
   github_document:
     html_preview: false
-    includes: 
-      in_header: _includes/head.html
+    # includes: 
+    #   in_header: _includes/head.html
     toc: true
     toc_depth: 3
 ---
@@ -22,17 +21,30 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 library(knitr)
 library(data.table)
 library(MASS)
-
-# Bayesian
+library(bestNormalize)
+library(plyr)
+library(stringr)
+library(lubridate)
+library(sf)
+library(spData)
+library(tictoc)
+library(cowplot)
+library(GGally)
+library(patchwork)
+library(fitdistrplus)
 library(caret)
+library(splines)
+library(mgcv)
+library(DescTools)
+library(car)
 library(bayesplot)
 library(BayesFactor)
-library(brms)
 library(rstanarm)
-
-# Data transforming and data viz
-library(stringr)
-library(plyr)
+library(tidybayes)
+library(loo)
+library(brms)
+library(bayesplot)
+library(performance)
 library(gt)
 library(gtsummary)
 library(tidyverse)
@@ -228,9 +240,9 @@ waicListComp |>
     Model, waic, p_waic, elpd_waic, elpd_diff, se_diff
   ) |>
   gt() |>
-  tab_header(
-    title = "Table 1: Model Selection Criteria"
-  ) |>
+  # tab_header(
+  #   title = "Table 1: Model Selection Criteria"
+  # ) |>
   tab_style(
     style = list(
       cell_borders(sides = "right")
@@ -243,8 +255,22 @@ waicListComp |>
   tab_options(
     table.align = "center"
   ) |>
+  tab_style(
+    style = list(
+      cell_fill(color = "#373737"),
+      cell_text(color = "#fff")
+    ),
+    locations = list(
+      cells_column_labels()
+    )
+  ) |>
+  tab_options(
+    column_labels.padding = "10px",
+    table.background.color = "#f2f2f2"
+  ) |>
+  #opt_vertical_padding(scale = 0.25) |>
+  tab_caption(caption = md("Table 1: Model Selection Criteria")) |>
   as_raw_html()
-
 ```
 
 ## Final Model
@@ -255,7 +281,7 @@ The Log-normal with random effects model was further refined to obtain a final m
 
 To verify goodness of fit of the model, draws were made from the posterior predictive distribution (PPD) and posterior predictive checks (PPC) were examined for the mean, standard deviation, and range. These checks can be seen below with corresponding Bayesian p-values. The p-values are far enough away from 0 or 1 to confirm the model adequately fits the data. The empirical distribution of the observed data also appears to fall within the simulated distributions from the PPD draws.
 
-```{r GOF, fig.align='center', fig.cap="Posterior Predictive Checks for Log-normal Random Effects Model"}
+```{r GOF, fig.align='center', fig.cap="Figure 1: Posterior Predictive Checks for Log-normal Random Effects Model"}
 load(file = "_data/logNormalFitFINAL.RData")
 logNormalFit <- logNormalFitFINAL
 
@@ -272,6 +298,11 @@ logNormalFitfinalFitUCB <- apply(logNormalFitfinalFit, 2, function(x){quantile(x
 ## PPC ----
 trainVMAX <- StormdataTrain$VMAX
 testVMAX <- Actual_Yvec
+
+iters <- 4000
+burn <- 2000
+chains <- 2
+sims <- (iters-burn)*chains
 
 ### Density -----
 logNormalFitfinalppcFit <- ppc_dens_overlay(
@@ -354,7 +385,7 @@ logNormalFitfinal_ppcComb
 
 After fitting the final model with random intercepts and weakly informative priors, the importance of the covariates was examined. The mean, standard deviation, and 95% credible set on each parameter is displayed for the posterior after partially pooling over the storm IDs. Since all covariates were center and scaled, the magnitude of the posterior means allow for direct comparison of covariate importance. From Table 2 below, the most important covariates from the model on VMAX were Land, HWFI, and HWRF. From the problem description, it is not suprising that HWRF was one of the most important covariates in modeling VMAX due to it being a prior model for VMAX already. However, it appears that HWFI actually is more important in this model for VMAX compared to HWRF.
 
-```{r Var, }
+```{r Var}
 finalFitSum <- summary(logNormalFitFINAL, digits = 4)
 finalFitFixed <- finalFitSum$fixed
 finalFitRand <- finalFitSum$random$StormID
@@ -369,9 +400,9 @@ finalFitFixed |>
   round(digits = 4) |>
   rownames_to_column(var = "Parameter") |>
   gt() |>
-  tab_header(
-    title = "Table 2: Posterior summary for model parameters"
-  ) |>
+  # tab_header(
+  #   title = "Table 2: Posterior summary for model parameters"
+  # ) |>
   cols_align(
     align = "center",
     columns = c(everything(), -Parameter)
@@ -385,9 +416,21 @@ finalFitFixed |>
       cells_column_labels(columns = Parameter)
     )
   ) |>
-  tab_options(
-    table.align = "center"
+  tab_style(
+    style = list(
+      cell_fill(color = "#373737"),
+      cell_text(color = "#fff")
+    ),
+    locations = list(
+      cells_column_labels()
+    )
   ) |>
+  tab_options(
+    column_labels.padding = "10px",
+    table.background.color = "#f2f2f2"
+  ) |>
+  #opt_vertical_padding(scale = 0.25) |>
+  tab_caption(caption = md("Table 2: Posterior summary for model parameters")) |>
   as_raw_html()
 ```
 
@@ -423,9 +466,9 @@ predMetricDF <- bind_rows(
 
 predMetricDF |>
   gt() |>
-  tab_header(
-    title = "Table 3: Prediction metrics"
-  ) |>
+  # tab_header(
+  #   title = "Table 3: Prediction metrics"
+  # ) |>
   cols_align(
     align = "center",
     columns = -Method
@@ -439,9 +482,21 @@ predMetricDF |>
       cells_column_labels(columns = Method)
     )
   ) |>
-  tab_options(
-    table.align = "center"
+  tab_style(
+    style = list(
+      cell_fill(color = "#373737"),
+      cell_text(color = "#fff")
+    ),
+    locations = list(
+      cells_column_labels()
+    )
   ) |>
+  tab_options(
+    column_labels.padding = "10px",
+    table.background.color = "#f2f2f2"
+  ) |>
+  #opt_vertical_padding(scale = 0.25) |>
+  tab_caption(caption = md("Table 3: Prediction metrics")) |>
   as_raw_html()
 ```
 

@@ -6,6 +6,4 @@ description: A Bayesian analysis of hurricane data from the National Hurricane C
 markdown: kramdown
 
 exclude:
-  - _layouts
-  - _includes
   - app
