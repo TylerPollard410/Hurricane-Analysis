@@ -4,5 +4,6 @@
 
 library(rmarkdown)
 
-render(input = "Hurricane_Analysis.Rmd", 
+render(input = "HurricaneAnalysis.Rmd", 
        output_file = "README.md")
+
