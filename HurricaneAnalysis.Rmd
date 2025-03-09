@@ -67,7 +67,7 @@ Stormdata1 <- Stormdata_raw |>
     Year = year(Date),
     Month = month(Date, label = TRUE),
     Day = yday(Date),
-    LON2 = LON - 360,
+    LON180 = LON - 360,
     DataType = ifelse(is.na(VMAX), "Test", "Train")
   ) |>
   group_by(StormID) |>
@@ -88,14 +88,22 @@ Stormdata1 <- Stormdata_raw |>
     StormElapsedTime2,
     LAT,
     LON,
-    LON2,
+    LON180,
     everything(),
     -lead_time
+  ) |>
+  mutate(
+    LAT2 = LAT,
+    .after = LAT
+  ) |>
+  mutate(
+    LON2 = LON,
+    .after = LON
   )
 
 ### Land Indicator ----
 pts <- st_as_sf(Stormdata1, # |> select(LON, LAT), 
-                coords = c("LON2", "LAT"),
+                coords = c("LON180", "LAT"),
                 crs = 4326
 )
 land_pts <- !is.na(as.numeric(st_intersects(pts, world)))
@@ -116,8 +124,10 @@ Stormdata <- Stormdata1 |>
     StormElapsedTime,
     StormElapsedTime2,
     LAT,
+    LAT2,
     LON,
     LON2,
+    LON180,
     Land,
     everything()
   ) |>
@@ -134,7 +144,7 @@ StormdataTrain <- Stormdata |>
     DataType,
     Date,
     Day,
-    LON2,
+    LON180,
     StormElapsedTime2,
     Obs
   ))|>
@@ -150,7 +160,7 @@ StormdataTest <- Stormdata |>
     DataType,
     Date,
     Day,
-    LON2,
+    LON180,
     StormElapsedTime2,
     Obs
   ))|>
@@ -164,18 +174,18 @@ StormdataTest <- Stormdata |>
   )
 
 ### Regular ----
-# preProc <- preProcess(StormdataTrain |> 
-#                         select(
-#                           where(is.numeric),
-#                           -VMAX
-#                           #-StormElapsedTime,
-#                           #-LAT,
-#                           #-LON
-#                         ),
-#                       method = c("scale", "center"))
+preProc <- preProcess(StormdataTrain |> 
+                        select(
+                          where(is.numeric),
+                          -VMAX
+                          #-StormElapsedTime,
+                          #-LAT,
+                          #-LON
+                        ),
+                      method = c("scale", "center"))
 #preProc
-# StormdataTrain2 <- predict(preProc, StormdataTrain)
-# StormdataTes2 <- predict(preProc, StormdataTest)
+StormdataTrain2 <- predict(preProc, StormdataTrain)
+StormdataTes2 <- predict(preProc, StormdataTest)
 #colnames(StormdataTrain)
 
 ### YeoJohnson ----
@@ -184,14 +194,50 @@ preProcYeo <- preProcess(StormdataTrain |>
                              where(is.numeric),
                              -VMAX,
                              #-HWRF,
-                             -StormElapsedTime
-                             #-LAT,
-                             #-LON
+                             -StormElapsedTime,
+                             -LAT2,
+                             -LON2
                            ),
                          method = c("scale", "center", "YeoJohnson"))
 #preProcYeo
 StormdataTrainYeo <- predict(preProcYeo, StormdataTrain)
 StormdataTestYeo <- predict(preProcYeo, StormdataTest)
+#colnames(StormdataTrainYeo)
+
+
+### Arcsinh ----
+StormdataTrainArcsinhPre <- StormdataTrain |>
+  mutate(
+    across(c(where(is.numeric), 
+             -VMAX, #-HWRF,
+             -StormElapsedTime, 
+             -LAT2, 
+             -LON2),
+           ~predict(arcsinh_x(.x, standardize = FALSE), newdata = .x)
+    ))
+
+StormdataTestArcsinhPre <- StormdataTest |>
+  mutate(
+    across(c(where(is.numeric), 
+             -VMAX, #-HWRF,
+             -StormElapsedTime, 
+             -LAT2, 
+             -LON2),
+           ~predict(arcsinh_x(.x, standardize = FALSE), newdata = .x)
+    ))
+
+preProcArcsinh <- preProcess(StormdataTrainArcsinhPre |> 
+                               select(
+                                 where(is.numeric),
+                                 -VMAX, #-HWRF,
+                                 -StormElapsedTime,
+                                 -LAT2,
+                                 -LON2
+                               ),
+                             method = c("scale", "center"))
+#preProcArcsinh
+StormdataTrainArcsinh <- predict(preProcArcsinh, StormdataTrainArcsinhPre)
+StormdataTestArcsinh <- predict(preProcArcsinh, StormdataTestArcsinhPre)
 ```
 
 # Introduction
@@ -244,7 +290,12 @@ waicListComp |>
   #   title = "Table 1: Model Selection Criteria"
   # ) |>
   fmt_number(
-    decimals = 2
+    decimals = 2,
+    use_seps = FALSE
+  ) |>
+  cols_align(
+    align = "center",
+    columns = -Model
   ) |>
   tab_style(
     style = list(
@@ -574,9 +625,14 @@ finalFitFixed |>
 
 # Prediction
 
-In the data that was delivered for this project, there were an additional 668 observations with missing VMAX for which a posterior predictive mean and 95\% credible interval were computed. To estimate the predictive accuracy of these model predictions, 5-fold cross-validation (CV) was used to estimate the mean absolute error (MAE) (i.e., the average of $|VMAX_i - \widehat{VMAX_i}|$ for the $i$ observations) and coverage (COV) of 95\% intervals. The 1705 observations were split into 5 approximately equal folds split by randomly selected StormIDs to mimic the prediction of entirely new hurricanes. Along with the predictions from cross-validation, predictions were made using the PPD from the model treating the fit observations as missing for comparison. The prediction metrics from both methods are Table 3 below. The coverage of 0.952 provides strong evidence that the model predicts new data well as it captured almost exactly the identified proportion of data expected from a 95\% credible interval. The MAE of 8.825 from CV, which is about a 12\% improvement in prediction accuracy, further solidifies the preference for the Log-normal Random Effects model over the HWRF model alone. 
+In the data that was delivered for this project, there were an additional 668 observations for new StormIDs with missing VMAX. The predictive performance of our model will be evaluated based on the computed posterior predictive mean and 95\% credible interval for these out-of-sample data.
 
-```{r CV Prediction Comp}
+## Cross-Validation
+
+```{r CV Prediction}
+load(file = "_data/final_cv.RData")
+load(file = "_data/final_cv_Metrics.RData")
+
 trainHWRF <- StormdataTrain$HWRF
 
 ### Model ----
@@ -588,9 +644,6 @@ final_Fit_predMetrics <- tibble(
 )
 
 ### CV ----
-load(file = "_data/final_cv.RData")
-load(file = "_data/final_cv_Metrics.RData")
-
 predMetricDF <- bind_rows(
   final_Fit_predMetrics,
   final_cv_Metrics |> 
@@ -605,7 +658,11 @@ predMetricDF <- bind_rows(
       .before = 1
     )
 )
+```
 
+To estimate the predictive accuracy of these model predictions, 5-fold cross-validation (CV) was used to estimate the mean absolute error (MAE) (i.e., the average of $|VMAX_i - \widehat{VMAX_i}|$ for the $i$ observations) and coverage (COV) of 95\% intervals. The 1705 observations were split into 5 approximately equal folds split by randomly selected StormIDs to mimic the prediction of entirely new hurricanes. Along with the predictions from CV, predictions were made using the PPD from the model treating the fit observations as missing for comparison. The prediction metrics from both methods are Table 3 below. The CV COV of `r round(final_cv_Metrics$COV_kfold, 3)` provides strong evidence that the model predicts new data well as it captured almost exactly the identified proportion of data expected from a 95\% credible interval. The MAE of `r round(final_cv_Metrics$MAE_kfold, 3)` from CV, which is about a `r round(1 - final_cv_Metrics$MAE_kfold/final_cv_Metrics$MAE_HWRF, 2)*100`\% improvement in prediction accuracy, further solidifies the preference for the Log-normal Random Effects model over the HWRF model alone. 
+
+```{r CV Prediction Comp}
 predMetricDF |>
   gt() |>
   # tab_header(
@@ -645,7 +702,211 @@ predMetricDF |>
     table.background.color = "#f2f2f2"
   ) |>
   #opt_vertical_padding(scale = 0.25) |>
-  tab_caption(caption = md("Table 3: Prediction metrics")) |>
+  tab_caption(caption = md("Table 3: Cross-Validation prediction metrics on observed data")) |>
   as_raw_html()
 ```
 
+## Out-of-Sample 
+
+```{r OOS Prediction}
+### Posterior ----
+set.seed(52)
+posteriorPred <- posterior_predict(final_Fit,
+                                   newdata = StormdataTestArcsinh,
+                                   allow_new_levels = TRUE, 
+                                   re_formula = NULL)
+posteriorPredMean <- colMeans(posteriorPred)
+posteriorPredMed <- apply(posteriorPred, 2, function(x){quantile(x, 0.5)})
+posteriorPredLCB <- apply(posteriorPred, 2, function(x){quantile(x, 0.025)})
+posteriorPredUCB <- apply(posteriorPred, 2, function(x){quantile(x, 0.975)})
+
+#### Prediction Metrics ----
+trainVMAX <- StormdataTrain$VMAX
+testVMAX <- Actual_Yvec
+
+trainHWRF <- StormdataTrain$HWRF
+testHWRF <- StormdataTest$HWRF
+
+OOS_predMetrics <- tibble(
+  Method = "Model PPD",
+  MAE_HWRF = mean(abs(testHWRF - testVMAX)),
+  MAE_Model = mean(abs(posteriorPredMean - testVMAX)),
+  MAD_Model = mean(abs(posteriorPredMed - testVMAX)),
+  COV = mean(posteriorPredLCB < testVMAX & testVMAX < posteriorPredUCB)
+)
+```
+
+Following this project, I was able to obtain the actual VMAX values of the 668 out-of-sample observations. Using this new data, I was able to quantify the true performance of our model.
+
+```{r OOS Performance Table}
+OOS_predMetrics |>
+  gt() |>
+  # tab_header(
+  #   title = "Table 3: Prediction metrics"
+  # ) |>
+  fmt_number(
+    decimals = 3
+  ) |>
+  cols_label(
+    MAE_HWRF = "HWRF MAE",
+    MAE_Model = "Model MAE",
+    MAD_Model = "Model MAD"
+  ) |>
+  cols_align(
+    align = "center",
+    columns = -Method
+  ) |>
+  tab_style(
+    style = list(
+      cell_borders(sides = "right")
+    ),
+    locations = list(
+      cells_body(columns = Method),
+      cells_column_labels(columns = Method)
+    )
+  ) |>
+  tab_style(
+    style = list(
+      cell_fill(color = "#373737"),
+      cell_text(color = "#fff")
+    ),
+    locations = list(
+      cells_column_labels()
+    )
+  ) |>
+  tab_options(
+    column_labels.padding = "10px",
+    table.background.color = "#f2f2f2"
+  ) |>
+  #opt_vertical_padding(scale = 0.25) |>
+  tab_caption(caption = md("Table 4: Prediction metrics on out-of-sample data")) |>
+  as_raw_html()
+```
+
+Below is a plot of the out-of-sample PPD mean with 95\% CI for all of the new StormIDs compared to the actual VMAX values.  
+
+```{r OOS All Plot, fig.align='center', out.width='90%', out.height='100%', fig.cap="Figure 2: "}
+oosPosteriorDF <- bind_cols(
+  StormdataTest,
+  LCB = posteriorPredLCB,
+  Mean = posteriorPredMean,
+  Med = posteriorPredMed,
+  UCB = posteriorPredUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) 
+
+fillPPD <- "lightblue"
+colorActual <- "#011f4b"
+colorHWRF <- "coral"
+colorPPD <- "springgreen3"
+
+#### All ----
+oosPPD_plot_All <- ggplot(data = oosPosteriorDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB, fill = "95% CI"), alpha = 0.5) +
+  geom_line(aes(y = VMAX, color = "Actual"), linewidth = 1, alpha = 0.5) +
+  #geom_line(aes(y = HWRF, color = "HWRF")) +
+  geom_line(aes(y = Mean, color = "PPD Mean"), linewidth = 0.75) +
+  scale_y_continuous(limits = c(0,250), breaks = seq(0,275,50)) +
+  facet_wrap(vars(StormID))+#, ncol = 6)+
+  labs(
+    #title = "PPD Mean vs Observed VMAX",
+    #subtitle = "95% Credible Interval about PPD Mean",
+    x = "Storm Elapsed Time"
+  ) +
+  scale_color_manual(name = NULL, 
+                     breaks = c(
+                       "Actual",
+                       #"HWRF",
+                       "PPD Mean"
+                     ),
+                     values = c(
+                       "Actual" = colorActual,
+                       #"HWRF" = colorHWRF,
+                       "PPD Mean" = colorPPD
+                     )
+  ) +
+  scale_fill_manual(name = NULL, 
+                    values = c(
+                      "95% CI" = fillPPD
+                    )
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linewidth = 1), order = 2)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
+oosPPD_plot_All
+```
+
+Below is a plot of the out-of-sample PPD mean with 95\% CI for new StormIDs that lasted the longest compared to the actual VMAX and HWRF values.
+
+```{r OOS Long Plot, fig.align='center', out.width='90%', out.height='100%', fig.cap="Figure 3: "}
+#### Long 9 ----
+predStorms <- oosPosteriorDF |> 
+  group_by(StormID) |>
+  summarise(
+    MaxTime = max(StormElapsedTime)
+  ) |>
+  #arrange(desc(MaxTime))
+  arrange(MaxTime)
+
+predStormsLong <- tail(predStorms, 9)
+
+predStormsLongID <- predStormsLong |> 
+  arrange(MaxTime) |>
+  mutate(
+    StormID = factor(as.character(StormID),
+                     levels = as.character(StormID))
+  )
+#predStormsLongID
+
+oosPosteriorDF_Long <- left_join(
+  predStormsLongID,
+  oosPosteriorDF
+)
+
+oosPPD_plot_Long <- 
+  ggplot(data = oosPosteriorDF_Long, 
+         aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB, fill = "95% CI"), alpha = 0.5) +
+  geom_line(aes(y = VMAX, color = "Actual"), linewidth = 1, alpha = .5) +
+  geom_line(aes(y = HWRF, color = "HWRF"), linewidth = .75) +
+  geom_line(aes(y = Mean, color = "PPD Mean"), linewidth = .75) +
+  scale_y_continuous(limits = c(0,250), breaks = seq(0,275,50)) +
+  facet_wrap(vars(StormID), dir = "h")+#, ncol = 6)+
+  labs(
+    #title = "PPD Mean vs Observed VMAX",
+    #subtitle = "95% Credible Interval about PPD Mean",
+    x = "Storm Elapsed Time"
+  ) +
+  scale_color_manual(name = NULL, 
+                     breaks = c(
+                       "Actual",
+                       "HWRF",
+                       "PPD Mean"
+                       #"HWRF" = "dodgerblue"
+                     ), 
+                     values = c(
+                       "Actual" = colorActual,
+                       "HWRF" = colorHWRF,
+                       "PPD Mean" = colorPPD
+                     )
+  )  +
+  scale_fill_manual(name = NULL, 
+                    values = c(
+                      "95% CI" = fillPPD
+                    )
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linewidth = 1), order = 2)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
+oosPPD_plot_Long
+```

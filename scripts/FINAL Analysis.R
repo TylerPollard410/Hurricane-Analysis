@@ -963,7 +963,8 @@ finalFitFixed |>
   tab_caption(caption = md("Table 2: Posterior summary for model parameters"))
 
 # Prediction #################################################################
-## Cross Validation ----
+## Observed Data ====
+### Cross Validation ----
 set.seed(52)
 kfoldID <- kfold_split_grouped(K = 5, StormdataTrain$StormID)
 system.time(
@@ -977,10 +978,10 @@ system.time(
 save(final_cv,
      file = "_data/final_cv.RData")
 
-## Performance ----
+### Performance ----
 trainHWRF <- StormdataTrain$HWRF
 
-### Model ----
+#### Model ----
 final_Fit_predMetrics <- tibble(
   Method = "Model PPD",
   MAE_HWRF = mean(abs(trainHWRF - trainVMAX)),
@@ -988,7 +989,7 @@ final_Fit_predMetrics <- tibble(
   COV = mean(posteriorFitLCB < trainVMAX & trainVMAX < posteriorFitUCB)
 )
 
-### CV ----
+#### CV ----
 set.seed(52)
 final_cv_Preds <- kfold_predict(final_cv)
 final_cv_PredsDat <- final_cv_Preds$yrep
@@ -1009,7 +1010,7 @@ save(final_cv_Metrics,
      file = "_data/final_cv_Metrics.RData")
 
 
-## Compare ----
+### Compare ----
 predMetricDF <- bind_rows(
   final_Fit_predMetrics,
   final_cv_Metrics |> 
@@ -1025,7 +1026,7 @@ predMetricDF <- bind_rows(
     )
 )
 
-### gt table ----
+#### gt table ----
 predMetricDF |>
   gt() |>
   # tab_header(
@@ -1067,10 +1068,184 @@ predMetricDF |>
   #opt_vertical_padding(scale = 0.25) |>
   tab_caption(caption = md("Table 3: Prediction metrics")) 
 
+### State-Space Plots ----  
+observedPosteriorDF <- bind_cols(
+  StormdataTrain,
+  LCB = posteriorFitLCB,
+  Mean = posteriorFitMean,
+  Med = posteriorFitMed,
+  UCB = posteriorFitUCB
+)
+
+fillPPD <- "lightblue"
+colorObserved <- "#011f4b"
+colorHWRF <- "coral"
+colorPPD <- "springgreen3"
+# fillPPD <- "#d1e1ec"
+# colorPPD <- "#b3cde0"
+# fill2PPD <- "#011f4b"
+
+observedPPD_plot <- ggplot(data = observedPosteriorDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB), fill = fillPPD) +
+  geom_line(aes(y = VMAX, color = "Observed")) +
+  geom_line(aes(y = Mean, color = "PPD Mean")) +
+  facet_wrap(vars(StormID))+
+  scale_y_continuous(limits = c(0,275), breaks = seq(0,275,50)) +
+  labs(title = "logNormalFit PPD Mean vs Observed VMAX",
+       subtitle = "95% Credible Interval about PPD Mean") +
+  scale_color_manual(name = NULL, values = c(colorObserved, colorPPD)) +
+  guides(
+    color = guide_legend(override.aes = list(linewidth = 1))
+  ) +
+  theme_bw()
+observedPPD_plot
 
 
 
+## Out-of-Sample =====
+### Posterior ----
+set.seed(52)
+posteriorPred <- posterior_predict(final_Fit,
+                                   newdata = StormdataTestArcsinh,
+                                   allow_new_levels = TRUE, 
+                                   re_formula = NULL)
+posteriorPredMean <- colMeans(posteriorPred)
+posteriorPredMed <- apply(posteriorPred, 2, function(x){quantile(x, 0.5)})
+posteriorPredLCB <- apply(posteriorPred, 2, function(x){quantile(x, 0.025)})
+posteriorPredUCB <- apply(posteriorPred, 2, function(x){quantile(x, 0.975)})
 
+#### Prediction Metrics ----
+trainVMAX <- StormdataTrain$VMAX
+testVMAX <- Actual_Yvec
+
+trainHWRF <- StormdataTrain$HWRF
+testHWRF <- StormdataTest$HWRF
+
+posterior_predMetrics <- tibble(
+  Method = "Prediction",
+  MAE_HWRF = mean(abs(testHWRF - testVMAX)),
+  MAE_Model = mean(abs(posteriorPredMean - testVMAX)),
+  MAD_Model = mean(abs(posteriorPredMed - testVMAX)),
+  COV = mean(posteriorPredLCB < testVMAX & testVMAX < posteriorPredUCB)
+)
+
+### State-Space Plots ----  
+oosPosteriorDF <- bind_cols(
+  StormdataTest,
+  LCB = posteriorPredLCB,
+  Mean = posteriorPredMean,
+  Med = posteriorPredMed,
+  UCB = posteriorPredUCB
+) |>
+  mutate(
+    VMAX = Actual_Yvec
+  ) 
+
+fillPPD <- "lightblue"
+colorActual <- "#011f4b"
+colorHWRF <- "coral"
+colorPPD <- "springgreen3"
+
+#### All ----
+oosPPD_plot_All <- ggplot(data = oosPosteriorDF, aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB, fill = "95% CI"), alpha = 0.5) +
+  geom_line(aes(y = VMAX, color = "Actual"), linewidth = 1, alpha = 0.5) +
+  #geom_line(aes(y = HWRF, color = "HWRF")) +
+  geom_line(aes(y = Mean, color = "PPD Mean"), linewidth = 0.75) +
+  scale_y_continuous(limits = c(0,250), breaks = seq(0,275,50)) +
+  facet_wrap(vars(StormID))+#, ncol = 6)+
+  labs(title = "PPD Mean vs Observed VMAX",
+       subtitle = "95% Credible Interval about PPD Mean",
+       x = "Storm Elapsed Time") +
+  scale_color_manual(name = NULL, 
+                     breaks = c(
+                       "Actual",
+                       #"HWRF",
+                       "PPD Mean"
+                     ),
+                     values = c(
+                       "Actual" = colorActual,
+                       #"HWRF" = colorHWRF,
+                       "PPD Mean" = colorPPD
+                     )
+  ) +
+  scale_fill_manual(name = NULL, 
+                    values = c(
+                      "95% CI" = fillPPD
+                    )
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linewidth = 1), order = 2)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
+oosPPD_plot_All
+
+
+#### Long 9 ----
+predStorms <- oosPosteriorDF |> 
+  group_by(StormID) |>
+  summarise(
+    MaxTime = max(StormElapsedTime)
+  ) |>
+  #arrange(desc(MaxTime))
+  arrange(MaxTime)
+
+predStormsLong <- tail(predStorms, 9)
+
+predStormsLongID <- predStormsLong |> 
+  arrange(MaxTime) |>
+  mutate(
+    StormID = factor(as.character(StormID),
+                     levels = as.character(StormID))
+  )
+predStormsLongID
+
+oosPosteriorDF_Long <- left_join(
+  predStormsLongID,
+  oosPosteriorDF
+)
+
+oosPPD_plot_Long <- 
+  ggplot(data = oosPosteriorDF_Long, 
+         aes(x = StormElapsedTime)) +
+  geom_ribbon(aes(ymin = LCB, ymax = UCB, fill = "95% CI"), alpha = 0.5) +
+  geom_line(aes(y = VMAX, color = "Actual"), linewidth = 1, alpha = .5) +
+  geom_line(aes(y = HWRF, color = "HWRF"), linewidth = .75) +
+  geom_line(aes(y = Mean, color = "PPD Mean"), linewidth = .75) +
+  scale_y_continuous(limits = c(0,250), breaks = seq(0,275,50)) +
+  facet_wrap(vars(StormID), dir = "h")+#, ncol = 6)+
+  labs(title = "PPD Mean vs Observed VMAX for 9 Longest Storms",
+       subtitle = "95% Credible Interval about PPD Mean",
+       x = "Storm Elapsed Time") +
+  scale_color_manual(name = NULL, 
+                     breaks = c(
+                       "Actual",
+                       "HWRF",
+                       "PPD Mean"
+                       #"HWRF" = "dodgerblue"
+                     ), 
+                     values = c(
+                       "Actual" = colorActual,
+                       "HWRF" = colorHWRF,
+                       "PPD Mean" = colorPPD
+                     )
+  )  +
+  scale_fill_manual(name = NULL, 
+                    values = c(
+                      "95% CI" = fillPPD
+                    )
+  ) +
+  guides(
+    color = guide_legend(override.aes = list(linewidth = 1), order = 2)
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom"
+  )
+oosPPD_plot_Long
 
 
 

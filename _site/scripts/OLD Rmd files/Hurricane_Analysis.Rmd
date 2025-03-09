@@ -1,0 +1,489 @@
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+```{r load libraries}
+# Load Libraries ----
+library(knitr)
+library(data.table)
+library(MASS)
+library(bestNormalize)
+library(plyr)
+library(stringr)
+library(lubridate)
+library(sf)
+library(spData)
+library(tictoc)
+library(cowplot)
+library(GGally)
+library(patchwork)
+library(fitdistrplus)
+library(caret)
+library(splines)
+library(mgcv)
+library(DescTools)
+library(car)
+library(bayesplot)
+library(BayesFactor)
+library(rstanarm)
+library(tidybayes)
+library(loo)
+library(brms)
+library(bayesplot)
+library(performance)
+library(gt)
+library(gtsummary)
+library(tidyverse)
+```
+
+```{r Read in Data, warning=FALSE, message=FALSE}
+# Read in data ----
+Stormdata_raw <- fread("_data/E2_data.csv")
+Actual_Y <- fread("_data/Actual Y.csv")
+Actual_Yvec <- Actual_Y |> filter(complete.cases(x)) |> pull(x)
+
+# Data ----
+## Clean data ----
+Stormdata1 <- Stormdata_raw |>
+  mutate(
+    Obs = 1:nrow(Stormdata_raw),
+    StormID = factor(StormID),
+    basin = factor(basin),
+    Date = as_datetime(Date, tz = "UTC"),
+    Year = year(Date),
+    Month = month(Date, label = TRUE),
+    Day = yday(Date),
+    LON2 = LON - 360,
+    DataType = ifelse(is.na(VMAX), "Test", "Train")
+  ) |>
+  group_by(StormID) |>
+  mutate(
+    StormElapsedTime = as.numeric(difftime(Date, min(Date), units = "hours")),
+    StormElapsedTime2 = StormElapsedTime/6
+  ) |>
+  ungroup() |>
+  select(
+    DataType,
+    StormID,
+    Date,
+    Year,
+    Month,
+    Day,
+    basin,
+    StormElapsedTime,
+    StormElapsedTime2,
+    LAT,
+    LON,
+    LON2,
+    everything(),
+    -lead_time
+  )
+
+### Land Indicator ----
+pts <- st_as_sf(Stormdata1, # |> select(LON, LAT), 
+                coords = c("LON2", "LAT"),
+                crs = 4326
+)
+land_pts <- !is.na(as.numeric(st_intersects(pts, world)))
+
+Stormdata <- Stormdata1 |>
+  mutate(
+    Land = factor(land_pts, 
+                  labels = c("Water", "Land"))
+  ) |>
+  select(
+    DataType,
+    StormID,
+    Date,
+    Year,
+    Month,
+    Day,
+    basin,
+    StormElapsedTime,
+    StormElapsedTime2,
+    LAT,
+    LON,
+    LON2,
+    Land,
+    everything()
+  ) |>
+  mutate(
+    across(c(StormID, Year, Month, basin),
+           ~factor(.x)
+    )
+  )
+
+## Split data -----
+StormdataTrain <- Stormdata |>
+  filter(DataType == "Train") |>
+  select(-c(
+    DataType,
+    Date,
+    Day,
+    LON2,
+    StormElapsedTime2,
+    Obs
+  ))|>
+  mutate(
+    across(c(StormID, Year, Month, basin),
+           ~droplevels(.x)
+    )
+  )
+
+StormdataTest <- Stormdata |>
+  filter(DataType == "Test") |>
+  select(-c(
+    DataType,
+    Date,
+    Day,
+    LON2,
+    StormElapsedTime2,
+    Obs
+  ))|>
+  mutate(
+    across(c(StormID, Year, Month, basin),
+           ~droplevels(.x)
+    )
+  ) |>
+  mutate(
+    VMAX = Actual_Yvec
+  )
+
+### Regular ----
+# preProc <- preProcess(StormdataTrain |> 
+#                         select(
+#                           where(is.numeric),
+#                           -VMAX
+#                           #-StormElapsedTime,
+#                           #-LAT,
+#                           #-LON
+#                         ),
+#                       method = c("scale", "center"))
+#preProc
+# StormdataTrain2 <- predict(preProc, StormdataTrain)
+# StormdataTes2 <- predict(preProc, StormdataTest)
+#colnames(StormdataTrain)
+
+### YeoJohnson ----
+preProcYeo <- preProcess(StormdataTrain |> 
+                           select(
+                             where(is.numeric),
+                             -VMAX,
+                             #-HWRF,
+                             -StormElapsedTime
+                             #-LAT,
+                             #-LON
+                           ),
+                         method = c("scale", "center", "YeoJohnson"))
+#preProcYeo
+StormdataTrainYeo <- predict(preProcYeo, StormdataTrain)
+StormdataTestYeo <- predict(preProcYeo, StormdataTest)
+```
+
+# Introduction
+
+The data for this analysis are from [A Feed Forward Neural Network Based on Model Output Statistics for Short-Term Hurricane Intensity Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml). The data variables descriptions are available [here](https://github.com/TylerPollard410/Hurricane-Analysis/blob/main/docs/data_description.pdf). This paper uses deep learning to improve 24-hour ahead forecasts of hurricane intensity (maximum wind velocity, VMAX). The main prediction model is [HWRF](https://www.aoml.noaa.gov/hurricane-weather-research-forecast-model/), which is a mathematical model based on differential equations. In addition to the forecast, HWRF has many other state variables such as sea surface temperature, longitude, time of year, etc, that are usually discarded. In this analysis, we will determine if including these state variables can improve the HWRF prediction.
+
+# Data Exploration (Shiny App)
+
+To begin this analysis, I created a [Hurricane Analysis app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to better understand and explore the data. The distribution of VMAX was plotted using the "Histogram" plot type, which revealed positive right skewness. The importance of spatial predictors like basin, Land, LAT, and LON can be viewed using the "Map" plot type. VMAX was plotted against all potential covariates and their transformed values to explore their relationship with the response and identify the best transformations to apply prior to model fitting.
+
+# Model Description
+
+The response variable, $Y_i$, is the observed VMAX of observation $i = 1, ..., n = 1705$ with StormID index $S_i = 1, ..., 87$ of a given hurricane. The $p = 20$ covariates $X_{ij}$ that were fit to the model were LAT, LON, basin, Land, MINSLP, SHR_MAG, STM_SPD, SST, RHL0, CAPE1, CAPE3, SHTFL2, TCOND7002, INST2, CP1, TCONDSYM2, COUPLSYM3, HWFI, VMAX_OP_T0, and HWRF. All covariates were normalized using a Yeo-Johnson transformation with centering and scaling. Due to the positive right skewness of VMAX, models were compared for Log-normal and Gamma likelihoods both with and without random effects.
+
+## Lognormal
+
+$$
+\begin{aligned}
+Y_{i} &\sim \text{LogNormal}(\mu_i, \sigma^2) \\
+\mu_i &= \beta_{0} + \sum_{j=1}^{p}X_{ij}\beta_{j} + \theta_{S_i} \\
+\theta_{S_i} &\sim \text{Normal}(0, \tau^2)
+\end{aligned}
+$$
+
+## Gamma
+
+$$
+\begin{aligned}
+Y_{i} &\sim \text{Gamma}(\alpha, \alpha/\mu_i) \\
+log(\mu_i) &= \beta_{0} + \sum_{j=1}^{p}X_{ij}\beta_{j} + \theta_{S_i} \\
+\theta_{S_i} &\sim \text{Normal}(0, \tau^2)
+\end{aligned}
+$$
+
+where $\beta_{j}$ is the effect of covariate $j$ with weakly informative priors $\beta_j \sim \text{Normal}(0,5)$. We set a non-informative prior on $\alpha \sim \text{InvGamma}(0.1, 0.1)$. In the random effects models, we set non-informative priors $\tau \sim \text{InvGamma}(0.1, 0.1)$, otherwise $\theta_{S_i} = 0$.
+
+# Model Comparisons
+
+All four models above were fit to the data and were first checked that the models converged to an acceptable level. Once convergence was confirmed, the models were compared based on WAIC to determine the model with the best expected predictive accuracy. Based on Table 1, I chose to go forward with the Log-normal with random effects model because it had the smallest mean deviance which is a good sign that it will predict the best. Both Log-normal models performed better than their Gamma counterparts, which solidified it as the better of the two likelihoods for VMAX. Additionally, both random effect models performed better than the non-random effect models, providing evidence for a random intercept for StormID.
+
+```{r WAIC}
+load(file = "_data/waicComps.RData")
+
+waicListComp |>
+  select(
+    Model, waic, p_waic, elpd_waic, elpd_diff, se_diff
+  ) |>
+  gt() |>
+  # tab_header(
+  #   title = "Table 1: Model Selection Criteria"
+  # ) |>
+  tab_style(
+    style = list(
+      cell_borders(sides = "right")
+    ),
+    locations = list(
+      cells_body(columns = Model),
+      cells_column_labels(columns = Model)
+    )
+  ) |>
+  tab_options(
+    table.align = "center"
+  ) |>
+  tab_style(
+    style = list(
+      cell_fill(color = "#373737"),
+      cell_text(color = "#fff")
+    ),
+    locations = list(
+      cells_column_labels()
+    )
+  ) |>
+  tab_options(
+    column_labels.padding = "10px",
+    table.background.color = "#f2f2f2"
+  ) |>
+  #opt_vertical_padding(scale = 0.25) |>
+  tab_caption(caption = md("Table 1: Model Selection Criteria")) |>
+  as_raw_html()
+```
+
+## Final Model
+
+The Log-normal with random effects model was further refined to obtain a final model. First, TCOND7002, INST2, and SHTFL2 were moved due to high VIF and the model was refit. Covariates were removed one at a time and the model was iteratively fit until the 95\% credible interval for all remaining covariates did not contain 0. The final model contained $p = 9$ covariates for Land, SHR_MAG, RHLO, CAPE3, CP1, TONDSYM2, COUPLSYM3, HWFI, and HWRF.
+
+# Goodness of Fit
+
+To verify goodness of fit of the model, draws were made from the posterior predictive distribution (PPD) and posterior predictive checks (PPC) were examined for the mean, standard deviation, and range. These checks can be seen below with corresponding Bayesian p-values. The p-values are far enough away from 0 or 1 to confirm the model adequately fits the data. The empirical distribution of the observed data also appears to fall within the simulated distributions from the PPD draws.
+
+```{r GOF, fig.align='center', fig.cap="Figure 1: Posterior Predictive Checks for Log-normal Random Effects Model"}
+load(file = "_data/logNormalFitFINAL.RData")
+logNormalFit <- logNormalFitFINAL
+
+## Posteriors ----
+### Training ----
+set.seed(52)
+logNormalFitfinalFit <- posterior_predict(logNormalFit)
+# logNormalFitfinalResiduals <- t(StormdataTrain3$VMAX - t(logNormalFitfinalFit))
+# logNormalFitfinalResidualsMean <- colMeans(logNormalFitfinalResiduals)
+logNormalFitfinalFitMean <- colMeans(logNormalFitfinalFit)
+logNormalFitfinalFitMed <- apply(logNormalFitfinalFit, 2, function(x){quantile(x, 0.5)})
+logNormalFitfinalFitLCB <- apply(logNormalFitfinalFit, 2, function(x){quantile(x, 0.025)})
+logNormalFitfinalFitUCB <- apply(logNormalFitfinalFit, 2, function(x){quantile(x, 0.975)})
+
+## PPC ----
+trainVMAX <- StormdataTrain$VMAX
+testVMAX <- Actual_Yvec
+
+iters <- 4000
+burn <- 2000
+chains <- 2
+sims <- (iters-burn)*chains
+
+### Density -----
+logNormalFitfinalppcFit <- ppc_dens_overlay(
+  y = trainVMAX,
+  yrep = logNormalFitfinalFit[sample(1:sims, 1000, replace = FALSE), ]
+) +
+  labs(title = "Simulated density of draws from the PPD vs Observed VMAX",
+       subtitle = "n = 1000 draws",
+       x = "VMAX",
+       y = "Density") +
+  scale_x_continuous(limits = c(0, 250), breaks = seq(0, 250, 25)) +
+  theme_bw()
+
+
+### Mean ----
+logNormalFitfinalMEANsims <- apply(logNormalFitfinalFit, 
+                                   MARGIN = 1,
+                                   function(x){
+                                     mean(x)
+                                   })
+logNormalFitfinalMEANpvalueVec <- logNormalFitfinalMEANsims < mean(StormdataTrain$VMAX)
+logNormalFitfinalMEANpvalue <- sum(logNormalFitfinalMEANpvalueVec)
+logNormalFitfinalMEANpvalue <- round(logNormalFitfinalMEANpvalue/sims, 3)
+logNormalFitfinalMEANpvalue <- min(logNormalFitfinalMEANpvalue, 1 - logNormalFitfinalMEANpvalue)
+
+logNormalFitfinal_ppcMEAN <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) mean(y), freq = FALSE) +
+  labs(title = paste0("Mean (p-val = ", logNormalFitfinalMEANpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+
+#### SD ----
+logNormalFitfinalSDsims <- apply(logNormalFitfinalFit, 
+                                 MARGIN = 1,
+                                 function(x){
+                                   sd(x)
+                                 })
+logNormalFitfinalSDpvalueVec <- logNormalFitfinalSDsims < sd(StormdataTrain$VMAX)
+logNormalFitfinalSDpvalue <- sum(logNormalFitfinalSDpvalueVec)
+logNormalFitfinalSDpvalue <- round(logNormalFitfinalSDpvalue/sims, 3)
+logNormalFitfinalSDpvalue <- min(logNormalFitfinalSDpvalue, 1 - logNormalFitfinalSDpvalue)
+
+logNormalFitfinal_ppcSD <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) sd(y), freq = FALSE) +
+  labs(title = paste0("SD (p-val = ", logNormalFitfinalSDpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+
+#### Range ----
+logNormalFitfinalRANGEsims <- apply(logNormalFitfinalFit, 
+                                    MARGIN = 1,
+                                    function(x){
+                                      max(x)-min(x)
+                                    })
+logNormalFitfinalRANGEpvalueVec <- logNormalFitfinalRANGEsims < (max(StormdataTrain$VMAX)-min(StormdataTrain$VMAX))
+logNormalFitfinalRANGEpvalue <- sum(logNormalFitfinalRANGEpvalueVec)
+logNormalFitfinalRANGEpvalue <- round(logNormalFitfinalRANGEpvalue/sims, 3)
+logNormalFitfinalRANGEpvalue <- min(logNormalFitfinalRANGEpvalue, 1 - logNormalFitfinalRANGEpvalue)
+
+logNormalFitfinal_ppcRANGE <- 
+  ppc_stat(StormdataTrain$VMAX,
+           logNormalFitfinalFit,
+           stat = function(y) max(y)-min(y), freq = FALSE) +
+  labs(title = paste0("Range (p-val = ", logNormalFitfinalRANGEpvalue, ")")) +
+  theme_bw() +
+  legend_none()
+
+logNormalFitfinal_ppcComb <- 
+  logNormalFitfinalppcFit /
+  (logNormalFitfinal_ppcMEAN | logNormalFitfinal_ppcSD | logNormalFitfinal_ppcRANGE)
+
+logNormalFitfinal_ppcComb
+```
+
+# Variable Importance
+
+After fitting the final model with random intercepts and weakly informative priors, the importance of the covariates was examined. The mean, standard deviation, and 95% credible set on each parameter is displayed for the posterior after partially pooling over the storm IDs. Since all covariates were center and scaled, the magnitude of the posterior means allow for direct comparison of covariate importance. From Table 2 below, the most important covariates from the model on VMAX were Land, HWFI, and HWRF. From the problem description, it is not suprising that HWRF was one of the most important covariates in modeling VMAX due to it being a prior model for VMAX already. However, it appears that HWFI actually is more important in this model for VMAX compared to HWRF.
+
+```{r Var}
+finalFitSum <- summary(logNormalFitFINAL, digits = 4)
+finalFitFixed <- finalFitSum$fixed
+finalFitRand <- finalFitSum$random$StormID
+
+finalFitFixed |>
+  select(
+    Mean = Estimate, 
+    SD = Est.Error, 
+    `Q2.5` = `l-95% CI`,
+    `Q97.5` = `u-95% CI`
+  ) |>
+  round(digits = 4) |>
+  rownames_to_column(var = "Parameter") |>
+  gt() |>
+  # tab_header(
+  #   title = "Table 2: Posterior summary for model parameters"
+  # ) |>
+  cols_align(
+    align = "center",
+    columns = c(everything(), -Parameter)
+  ) |>
+  tab_style(
+    style = list(
+      cell_borders(sides = "right")
+    ),
+    locations = list(
+      cells_body(columns = Parameter),
+      cells_column_labels(columns = Parameter)
+    )
+  ) |>
+  tab_style(
+    style = list(
+      cell_fill(color = "#373737"),
+      cell_text(color = "#fff")
+    ),
+    locations = list(
+      cells_column_labels()
+    )
+  ) |>
+  tab_options(
+    column_labels.padding = "10px",
+    table.background.color = "#f2f2f2"
+  ) |>
+  #opt_vertical_padding(scale = 0.25) |>
+  tab_caption(caption = md("Table 2: Posterior summary for model parameters")) |>
+  as_raw_html()
+```
+
+# Prediction
+
+In the data that was delivered for this project, there were an additional 668 observations with missing VMAX for which a posterior predictive mean and 95\% credible interval were computed. To estimate the predictive accuracy of these model predictions, 5-fold cross-validation (CV) was used to estimate the mean absolute error (i.e., the average of $|VMAX_i - \widehat{VMAX_i}|$ for the $i$ observations) and coverage (COV) of 95\% intervals. The 1705 observations were split into 5 approximately equal folds split by randomly selected StormIDs to mimic the prediction of entirely new hurricanes. Along with the predictions from cross-validation, predictions were made using the PPD from the model treating the fit observations as missing for comparison. The prediction metrics from both methods are Table 3 below. The coverage of 0.952 provides strong evidence that the model predicts new data well as it captured almost exactly the identified proportion of data expected from a 95\% credible interval. The MAE of 8.825 from CV, which is about a 12\% improvement in prediction accuracy, further solidifies the preference for the Log-normal Random Effects model over the HWRF model alone. 
+
+```{r pred A}
+logNormalFitpredMetrics <- tibble(
+  Method = "Model PPD",
+  MAE_HWRF = mean(abs(StormdataTrain$HWRF - StormdataTrain$VMAX)),
+  MAE_Model = mean(abs(logNormalFitfinalFitMean - StormdataTrain$VMAX)),
+  COV = mean(logNormalFitfinalFitLCB < StormdataTrain$VMAX & StormdataTrain$VMAX < logNormalFitfinalFitUCB)
+)
+
+load(file = "_data/logNormalFitKfold.RData")
+load(file = "_data/logNormalFitKfoldMetrics.RData")
+
+predMetricDF <- bind_rows(
+  logNormalFitpredMetrics,
+  logNormalFitkfoldMetrics |> 
+    select(
+      MAE_HWRF,
+      MAE_Model = MAE_kfold,
+      COV = COV_kfold
+    ) |>
+    round(digits = 3) |>
+    mutate(
+      Method = "5-fold CV",
+      .before = 1
+    )
+)
+
+predMetricDF |>
+  gt() |>
+  # tab_header(
+  #   title = "Table 3: Prediction metrics"
+  # ) |>
+  cols_align(
+    align = "center",
+    columns = -Method
+  ) |>
+  tab_style(
+    style = list(
+      cell_borders(sides = "right")
+    ),
+    locations = list(
+      cells_body(columns = Method),
+      cells_column_labels(columns = Method)
+    )
+  ) |>
+  tab_style(
+    style = list(
+      cell_fill(color = "#373737"),
+      cell_text(color = "#fff")
+    ),
+    locations = list(
+      cells_column_labels()
+    )
+  ) |>
+  tab_options(
+    column_labels.padding = "10px",
+    table.background.color = "#f2f2f2"
+  ) |>
+  #opt_vertical_padding(scale = 0.25) |>
+  tab_caption(caption = md("Table 3: Prediction metrics")) |>
+  as_raw_html()
+```
+
