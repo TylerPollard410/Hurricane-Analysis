@@ -3,6 +3,25 @@
 
 @import "{{ site.theme }}";
 
+#portfolio_banner {
+  display: block;
+  position: absolute;
+  top: 0px; 
+  right: 200px;
+  z-index: 10;
+  padding: 10px 50px 10px 10px;
+  color: #fff;
+  background: url('../images/portfolio.png') #ff9900 no-repeat 95% 50%; 
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(0,0,0,.5);
+  border-bottom-left-radius: 2px;
+  border-bottom-right-radius: 2px;
+}
+
+#portfolio_banner:hover {
+  background-color: #e68a00; 
+}
+
 /* Adjust the width of the content container for wider screens */
 /*
 .inner {
