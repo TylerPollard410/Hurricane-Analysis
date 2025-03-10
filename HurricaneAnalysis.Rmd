@@ -1024,7 +1024,7 @@ This analysis explored whether incorporating additional HWRF state variables imp
 Through **cross-validation and out-of-sample evaluation**, the model consistently **outperformed HWRF forecasts**:
 
 * Cross-validation showed a **`r round(1 - final_cv_Metrics$MAE_kfold/final_cv_Metrics$MAE_HWRF, 2)*100`\% reduction in MAE**, while maintaining well-calibrated uncertainty estimates.
-* Out-of-sample results confirmed that the model **improved MAE by r round(1 - OOS_predMetrics$MAE_Model/OOS_predMetrics$MAE_HWRF, 2)*100% over HWRF**.
+* Out-of-sample results confirmed that the model **improved MAE by `r round(1 - OOS_predMetrics$MAE_Model/OOS_predMetrics$MAE_HWRF, 2)*100`\% over HWRF**.
 
 The prediction plots further validated the model’s reliability, demonstrating **well-calibrated posterior** intervals and a **strong alignment between predicted and observed VMAX values**, particularly for long-duration storms, where forecasting is most critical.
 
