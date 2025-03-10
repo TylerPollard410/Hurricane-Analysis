@@ -44,21 +44,10 @@ variables** can enhance the accuracy of hurricane intensity predictions
 
 # Data Exploration (Shiny App)
 
-To begin this analysis, I created a [Hurricane Analysis
-app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to better
-understand and explore the data. The distribution of VMAX was plotted
-using the “Histogram” plot type, which revealed positive right skewness.
-The importance of spatial predictors like basin, Land, LAT, and LON can
-be viewed using the “Map” plot type. VMAX was plotted against all
-potential covariates and their transformed values to explore their
-relationship with the response and identify the best transformations to
-apply prior to model fitting.
-
 To facilitate exploratory analysis, I developed an interactive
-[Hurricane Analysis
-app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/). This tool
-enables the visualization of key variables and their relationships with
-VMAX:
+<a href="https://tylerpollard410.shinyapps.io/Hurricane_EDA/" target="_blank"><b>
+Hurricane Analysis app</b></a>. This tool enables the visualization of
+key variables and their relationships with VMAX:
 
 - The Histogram plot reveals that **VMAX exhibits positive right-skewed
   distribution**.
@@ -129,7 +118,7 @@ Criterion (WAIC)** and **Expected Log Predictive Density (ELPD)**, both
 of which estimates out-of-sample predictive accuracy. Table 1 presents
 the WAIC values along with associated parameters for each model:
 
-<div id="samghdutjz" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<div id="opbkgkhqoh" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
   &#10;  <table class="gt_table" data-quarto-disable-processing="false" data-quarto-bootstrap="false" style="-webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'; display: table; border-collapse: collapse; line-height: normal; margin-left: auto; margin-right: auto; color: #333333; font-size: 16px; font-weight: normal; font-style: normal; background-color: #F2F2F2; width: auto; border-top-style: solid; border-top-width: 2px; border-top-color: #A8A8A8; border-right-style: none; border-right-width: 2px; border-right-color: #D3D3D3; border-bottom-style: solid; border-bottom-width: 2px; border-bottom-color: #A8A8A8; border-left-style: none; border-left-width: 2px; border-left-color: #D3D3D3;" bgcolor="#F2F2F2">
   <caption><span class="gt_from_md">Table 1: Model Selection Criteria Using WAIC and ELPD</span></caption>
   <thead style="border-style: none;">
@@ -532,9 +521,8 @@ consistently **outperformed HWRF forecasts**:
 
 - Cross-validation showed a **12% reduction in MAE**, while maintaining
   well-calibrated uncertainty estimates.
-- Out-of-sample results confirmed that the model \*\*improved MAE by r
-  round(1 - OOS_predMetrics$MAE_Model/OOS_predMetrics$MAE_HWRF, 2)\*100%
-  over HWRF\*\*.
+- Out-of-sample results confirmed that the model **improved MAE by 5%
+  over HWRF**.
 
 The prediction plots further validated the model’s reliability,
 demonstrating **well-calibrated posterior** intervals and a **strong

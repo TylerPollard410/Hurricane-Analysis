@@ -250,9 +250,7 @@ This analysis aims to assess whether incorporating these **HWRF state variables*
 
 # Data Exploration (Shiny App)
 
-To begin this analysis, I created a [Hurricane Analysis app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to better understand and explore the data. The distribution of VMAX was plotted using the "Histogram" plot type, which revealed positive right skewness. The importance of spatial predictors like basin, Land, LAT, and LON can be viewed using the "Map" plot type. VMAX was plotted against all potential covariates and their transformed values to explore their relationship with the response and identify the best transformations to apply prior to model fitting.
-
-To facilitate exploratory analysis, I developed an interactive [Hurricane Analysis app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/). This tool enables the visualization of key variables and their relationships with VMAX:
+To facilitate exploratory analysis, I developed an interactive <a href="https://tylerpollard410.shinyapps.io/Hurricane_EDA/" target="_blank"><b> Hurricane Analysis app</b></a>. This tool enables the visualization of key variables and their relationships with VMAX:
 
 * The Histogram plot reveals that **VMAX exhibits positive right-skewed distribution**.
 * The Map feature illustrates the geographic influence of spatial variables like basin, land presence, latitude, and longitude.
