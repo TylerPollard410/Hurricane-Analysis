@@ -545,7 +545,15 @@ waicListComp <- loo_compare(
 )
 waicListComp <- waicListComp |>
   data.frame() |>
-  rownames_to_column(var = "Model")
+  rownames_to_column(var = "Model") |>
+  mutate(
+    Model = case_when(
+      Model == "logNormal_Fit" ~ "Log-normal (Fixed Effects)",
+      Model == "logNormal_Rand_Fit" ~ "Log-normal (Random Effects)",
+      Model == "gamma_Fit" ~ "Gamma (Fixed Effects)",
+      Model == "gamma_Rand_Fit" ~ "Gamma (Random Effects)"
+    )
+  )
 
 save(waicList, waicListComp, file = "_data/waicComps.RData")
 
@@ -559,7 +567,32 @@ waicListComp |>
   #   title = "Table 1: Model Selection Criteria"
   # ) |>
   fmt_number(
-    decimals = 2
+    decimals = 2,
+    use_seps = FALSE
+  ) |>
+  cols_align(
+    align = "center",
+    columns = -Model
+  ) |>
+  tab_footnote(
+    footnote = "WAIC (waic): Widely Applicable Information Criterion, a model selection metric balancing fit and complexity. Lower values indicate better expected predictive accuracy.",
+    locations = cells_column_labels(columns = waic)
+  ) |>
+  tab_footnote(
+    footnote = "Effective Parameters (p_waic): An estimate of the number of effective parameters in the model; higher values indicate more flexibility.",
+    locations = cells_column_labels(columns = p_waic)
+  ) |>
+  tab_footnote(
+    footnote = "ELPD (elpd_waic): Expected log predictive density, quantifying out-of-sample predictive performance. Higher (less negative) values indicate better predictive accuracy.",
+    locations = cells_column_labels(columns = elpd_waic)
+  ) |>
+  tab_footnote(
+    footnote = "ELPD Difference (elpd_diff): The difference in elpd_waic relative to the best model (logNormal_Rand_Fit). The best model always has elpd_diff = 0.",
+    locations = cells_column_labels(columns = elpd_diff)
+  ) |>
+  tab_footnote(
+    footnote = "SE of Difference (se_diff): The standard error of elpd_diff, measuring uncertainty in the difference estimates. Large absolute elpd_diff values relative to se_diff indicate meaningful performance differences.",
+    locations = cells_column_labels(columns = se_diff)
   ) |>
   tab_style(
     style = list(
@@ -587,7 +620,7 @@ waicListComp |>
     table.background.color = "#f2f2f2"
   ) |>
   #opt_vertical_padding(scale = 0.25) |>
-  tab_caption(caption = md("Table 1: Model Selection Criteria")) |>
+  tab_caption(caption = md("Table 1: Model Selection Criteria Using WAIC and ELPD")) |>
   as_raw_html()
 
 ## FINAL Model =============================================================

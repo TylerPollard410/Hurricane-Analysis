@@ -1,3 +1,17 @@
+---
+author: "Tyler Pollard"
+date: "2024-08-25"
+header-includes:
+  - \usepackage{mathtools}
+output:  
+  github_document:
+    html_preview: false
+    # includes: 
+    #   in_header: _includes/head.html
+    toc: true
+    toc_depth: 3
+---
+
 ```{r setup, echo = FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
@@ -228,15 +242,25 @@ StormdataTestArcsinh <- predict(preProcArcsinh, StormdataTestArcsinhPre)
 
 # Introduction
 
-The data for this analysis are from [A Feed Forward Neural Network Based on Model Output Statistics for Short-Term Hurricane Intensity Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml). The data variables descriptions are available [here](https://github.com/TylerPollard410/Hurricane-Analysis/blob/main/docs/data_description.pdf). This paper uses deep learning to improve 24-hour ahead forecasts of hurricane intensity (maximum wind velocity, VMAX). The main prediction model is [HWRF](https://www.aoml.noaa.gov/hurricane-weather-research-forecast-model/), which is a mathematical model based on differential equations. In addition to the forecast, HWRF has many other state variables such as sea surface temperature, longitude, time of year, etc, that are usually discarded. In this analysis, we will determine if including these state variables can improve the HWRF prediction.
+The data for this analysis are from [A Feed Forward Neural Network Based on Model Output Statistics for Short-Term Hurricane Intensity Prediction](https://journals.ametsoc.org/view/journals/wefo/34/4/waf-d-18-0173_1.xml), with detailed variable descriptions available [here](https://github.com/TylerPollard410/Hurricane-Analysis/blob/main/docs/data_description.pdf). This paper uses deep learning to improve 24-hour ahead forecasts of hurricane intensity (maximum wind velocity, VMAX). 
+
+The primary prediction model, [HWRF](https://www.aoml.noaa.gov/hurricane-weather-research-forecast-model/), which is a mathematical weather prediction model based on differential equations. In addition to the forecast, HWRF has many other state variables such as **sea surface temperature, longitude, time of year, etc**, that are usually discarded. 
+
+This analysis aims to assess whether incorporating these **HWRF state variables** can enhance the accuracy of hurricane intensity predictions
 
 # Data Exploration (Shiny App)
 
 To begin this analysis, I created a [Hurricane Analysis app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/) to better understand and explore the data. The distribution of VMAX was plotted using the "Histogram" plot type, which revealed positive right skewness. The importance of spatial predictors like basin, Land, LAT, and LON can be viewed using the "Map" plot type. VMAX was plotted against all potential covariates and their transformed values to explore their relationship with the response and identify the best transformations to apply prior to model fitting.
 
+To facilitate exploratory analysis, I developed an interactive [Hurricane Analysis app](https://tylerpollard410.shinyapps.io/Hurricane_EDA/). This tool enables the visualization of key variables and their relationships with VMAX:
+
+* The Histogram plot reveals that **VMAX exhibits positive right-skewed distribution**.
+* The Map feature illustrates the geographic influence of spatial variables like basin, land presence, latitude, and longitude.
+* Scatter plots of VMAX against potential predictors highlight the importance of **feature transformations** for model fitting.
+
 # Model Description
 
-The response variable, $Y_i$, is the observed VMAX of observation $i = 1, ..., n = 1705$ with StormID index $S_i = 1, ..., 87$ of a given hurricane. The $p = 20$ covariates $X_{ij}$ that were fit to the model were LAT, LON, basin, Land, MINSLP, SHR_MAG, STM_SPD, SST, RHL0, CAPE1, CAPE3, SHTFL2, TCOND7002, INST2, CP1, TCONDSYM2, COUPLSYM3, HWFI, VMAX_OP_T0, and HWRF. All covariates were normalized using a Yeo-Johnson transformation with centering and scaling. Due to the positive right skewness of VMAX, models were compared for Log-normal and Gamma likelihoods both with and without random effects.
+The response variable $Y_i$ is the observed VMAX of observation $i = 1, ..., n = 1705$ with StormID index $S_i = 1, ..., 87$ of a given hurricane. The $p = 20$ covariates $X_{ij}$ that were fit to the model were LAT, LON, basin, Land, MINSLP, SHR_MAG, STM_SPD, SST, RHL0, CAPE1, CAPE3, SHTFL2, TCOND7002, INST2, CP1, TCONDSYM2, COUPLSYM3, HWFI, VMAX_OP_T0, and HWRF. All covariates were normalized using a Yeo-Johnson transformation with centering and scaling. Due to the positive right skewness of VMAX, models were compared for Log-normal and Gamma likelihoods both with and without random effects.
 
 ## Lognormal
 
